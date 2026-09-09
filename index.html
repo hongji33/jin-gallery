@@ -239,12 +239,11 @@
   .badge-standard{background:var(--wall-2);color:var(--ink-soft);border:1px solid var(--border);}
 
   .badge-legend-card{margin-bottom:20px;}
-  .badge-legend{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .badge-legend{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
   .badge-legend-item{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:var(--radius-m);background:var(--wall-2);}
   .badge-legend-item .badge{align-self:flex-start;}
-  .badge-legend-item .bl-desc{font-size:12px;color:var(--ink-soft);line-height:1.45;}
-  @media (max-width:860px){.badge-legend{grid-template-columns:repeat(2,1fr);}}
-  @media (max-width:480px){.badge-legend{grid-template-columns:1fr;}}
+  .badge-legend-item .bl-desc{font-size:12px;color:var(--ink-soft);line-height:1.45;white-space:nowrap;}
+  @media (max-width:700px){.badge-legend{grid-template-columns:1fr;}.badge-legend-item .bl-desc{white-space:normal;}}
 
   .toast{
     position:fixed;bottom:78px;left:50%;transform:translateX(-50%);
@@ -395,7 +394,7 @@
   .close-x{position:absolute;top:14px;right:16px;background:none;border:none;font-size:18px;color:var(--ink-soft);cursor:pointer;}
 
   .empty-note{color:var(--ink-soft);font-size:13.5px;padding:20px;text-align:center;}
-  .gallery-grid > .empty-note, .pledge-grid > .empty-note{grid-column:1 / -1;max-width:52ch;margin:0 auto;}
+  .gallery-grid > .empty-note, .pledge-grid > .empty-note{grid-column:1 / -1;max-width:640px;margin:0 auto;}
 
   .segmented{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
   .seg-btn{
@@ -1195,10 +1194,22 @@
           '</div>';
         }
         var canDeleteThis = teacherMode || (myProfile && r.viewerId === myProfile.id);
-        return '<div class="response-row" style="flex-direction:column;align-items:stretch;gap:3px;">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        var isBest = a.bestResponseId === r.id;
+        var isOwnResp = myProfile && r.viewerId === myProfile.id;
+        var liked = !!(myProfile && r.likes && r.likes[myProfile.id]);
+        var lc = likeCount(r);
+        var likeBtn = myProfile ?
+          '<button data-like-resp="'+r.id+'" style="background:none;border:none;cursor:pointer;font-size:12px;padding:2px 4px;color:'+(liked?'var(--brass-deep)':'var(--ink-soft)')+';opacity:'+(isOwnResp?'.4':'1')+';" title="'+(isOwnResp?'내 감상평에는 좋아요를 누를 수 없어요':(liked?'좋아요 취소':'좋아요'))+'" '+(isOwnResp?'disabled':'')+'>'+(liked?'❤️':'🤍')+' '+lc+'</button>'
+          : '<span style="font-size:12px;color:var(--ink-soft);">🤍 '+lc+'</span>';
+        var bestBtn = canModerateArt ?
+          '<button data-best-resp="'+r.id+'" style="background:none;border:none;cursor:pointer;font-size:11.5px;padding:2px 6px;border-radius:999px;'+(isBest?'background:var(--brass);color:#4A2A42;':'color:var(--ink-soft);border:1px solid var(--border);')+'" title="베스트 답변으로 선정하면 +'+BEST_ANSWER_BONUS+'P가 주어져요">🏆 '+(isBest?'베스트 답변':'베스트로 선정')+'</button>'
+          : (isBest ? '<span class="badge badge-masterpiece" style="font-size:10.5px;">🏆 베스트 답변</span>' : '');
+        return '<div class="response-row" style="flex-direction:column;align-items:stretch;gap:3px;'+(isBest?'background:var(--wall-2);border-radius:var(--radius-m);padding:8px 10px;margin:2px -10px;':'')+'">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">' +
             '<span class="who">'+esc(r.viewerNickname)+'</span>' +
-            '<span style="display:flex;align-items:center;gap:8px;">' +
+            '<span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+              bestBtn +
+              likeBtn +
               '<span class="num" style="color:var(--brass-deep);">+'+r.score+'P</span>' +
               (canDeleteThis ? '<button data-del-resp="'+r.id+'" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:12px;padding:2px 4px;" title="삭제">🗑️</button>' : '') +
             '</span>' +
@@ -1252,6 +1263,20 @@
         if(r) deleteResponse(r, a.id);
       });
     });
+    $all("[data-like-resp]").forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        var r = respList.filter(function(x){ return x.id === btn.dataset.likeResp; })[0];
+        if(r) toggleLike(r);
+      });
+    });
+    $all("[data-best-resp]").forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        var r = respList.filter(function(x){ return x.id === btn.dataset.bestResp; })[0];
+        if(r) toggleBest(a, r);
+      });
+    });
   }
 
   function startEditArtwork(a){
@@ -1289,10 +1314,17 @@
     });
   }
 
+  var BEST_ANSWER_BONUS = 5;
+  function likeCount(r){ return r.likes ? Object.keys(r.likes).length : 0; }
+  function isBestResponse(r){
+    var art = artworksCache.filter(function(x){ return x.id === r.artworkId; })[0];
+    return !!(art && art.bestResponseId === r.id);
+  }
+
   function reverseResponsePoints(r){
     if(!db) return Promise.resolve();
     var totalScore = r.score || 0;
-    var viewerPoints = 5 + totalScore;
+    var viewerPoints = 5 + totalScore + likeCount(r) + (isBestResponse(r) ? BEST_ANSWER_BONUS : 0);
     var authorBonus = 2 + Math.ceil(totalScore / 3);
     var p1 = db.doc("students/" + r.viewerId).get().then(function(snap){
       if(!snap.exists) return;
@@ -1307,11 +1339,70 @@
     return Promise.all([p1, p2]);
   }
 
+  /* 좋아요 토글: 다른 학생의 감상평에 +1P (본인 글은 좋아요 불가) */
+  function toggleLike(r){
+    if(!myProfile){ toast("먼저 [반 선택] 탭에서 프로필을 등록해 주세요."); return; }
+    if(!db){ toast("데이터 연결을 확인하고 있어요."); return; }
+    if(r.viewerId === myProfile.id){ toast("내 감상평에는 좋아요를 누를 수 없어요."); return; }
+    var already = r.likes && r.likes[myProfile.id];
+    var likeField = "likes." + myProfile.id;
+    var update = {};
+    update[likeField] = already ? firebase.firestore.FieldValue.delete() : true;
+    db.doc("responses/" + r.id).update(update).then(function(){
+      return db.doc("students/" + r.viewerId).get();
+    }).then(function(snap){
+      if(!snap.exists) return;
+      var cur = snap.data().points || 0;
+      var next = already ? Math.max(0, cur - 1) : cur + 1;
+      return db.doc("students/" + r.viewerId).update({ points: next });
+    }).then(function(){
+      openArtwork(r.artworkId);
+    }).catch(function(err){ console.error(err); toast("처리 중 오류가 발생했어요."); });
+  }
+
+  /* 베스트 답변 선정/해제: 작품 작가(또는 교사)가 가장 훌륭한 감상평을 골라 보너스 포인트를 줘요 */
+  function toggleBest(a, r){
+    if(!db){ toast("데이터 연결을 확인하고 있어요."); return; }
+    var isCurrentBest = a.bestResponseId === r.id;
+    var steps = Promise.resolve();
+    if(a.bestResponseId && a.bestResponseId !== r.id){
+      var prev = responsesCache.filter(function(x){ return x.id === a.bestResponseId; })[0];
+      if(prev){
+        steps = steps.then(function(){
+          return db.doc("students/" + prev.viewerId).get().then(function(snap){
+            if(!snap.exists) return;
+            var cur = snap.data().points || 0;
+            return db.doc("students/" + prev.viewerId).update({ points: Math.max(0, cur - BEST_ANSWER_BONUS) });
+          });
+        });
+      }
+    }
+    steps = steps.then(function(){
+      return db.doc("artworks/" + a.id).update({ bestResponseId: isCurrentBest ? null : r.id });
+    });
+    if(!isCurrentBest){
+      steps = steps.then(function(){
+        return db.doc("students/" + r.viewerId).get();
+      }).then(function(snap){
+        if(!snap.exists) return;
+        var cur = snap.data().points || 0;
+        return db.doc("students/" + r.viewerId).update({ points: cur + BEST_ANSWER_BONUS });
+      });
+    }
+    steps.then(function(){
+      toast(isCurrentBest ? "베스트 답변 선정을 해제했어요." : "🏆 베스트 답변으로 선정했어요! (+" + BEST_ANSWER_BONUS + "P)");
+      openArtwork(a.id);
+    }).catch(function(err){ console.error(err); toast("처리 중 오류가 발생했어요."); });
+  }
+
   function deleteResponse(r, artworkId){
-    if(!confirm("이 감상평을 삭제할까요? 부여됐던 포인트도 함께 회수돼요.")) return;
+    if(!confirm("이 감상평을 삭제할까요? 부여됐던 포인트(좋아요·베스트 답변 보너스 포함)도 함께 회수돼요.")) return;
     if(!db) { toast("데이터 연결을 확인하고 있어요."); return; }
+    var wasBest = isBestResponse(r);
     reverseResponsePoints(r).then(function(){
       return db.doc("responses/" + r.id).delete();
+    }).then(function(){
+      if(wasBest) return db.doc("artworks/" + r.artworkId).update({ bestResponseId: null }).catch(function(){});
     }).then(function(){
       toast("감상평을 삭제했어요.");
       if(artworkId) openArtwork(artworkId);
