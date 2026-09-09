@@ -239,11 +239,12 @@
   .badge-standard{background:var(--wall-2);color:var(--ink-soft);border:1px solid var(--border);}
 
   .badge-legend-card{margin-bottom:20px;}
-  .badge-legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 16px;}
-  .badge-legend-item{display:flex;align-items:center;gap:10px;}
-  .badge-legend-item .badge{flex-shrink:0;min-width:52px;justify-content:center;}
-  .badge-legend-item .bl-desc{font-size:12px;color:var(--ink-soft);line-height:1.35;}
-  @media (max-width:600px){.badge-legend{grid-template-columns:1fr;}}
+  .badge-legend{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .badge-legend-item{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:var(--radius-m);background:var(--wall-2);}
+  .badge-legend-item .badge{align-self:flex-start;}
+  .badge-legend-item .bl-desc{font-size:12px;color:var(--ink-soft);line-height:1.45;}
+  @media (max-width:860px){.badge-legend{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:480px){.badge-legend{grid-template-columns:1fr;}}
 
   .toast{
     position:fixed;bottom:78px;left:50%;transform:translateX(-50%);
@@ -394,6 +395,7 @@
   .close-x{position:absolute;top:14px;right:16px;background:none;border:none;font-size:18px;color:var(--ink-soft);cursor:pointer;}
 
   .empty-note{color:var(--ink-soft);font-size:13.5px;padding:20px;text-align:center;}
+  .gallery-grid > .empty-note, .pledge-grid > .empty-note{grid-column:1 / -1;max-width:52ch;margin:0 auto;}
 
   .segmented{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
   .seg-btn{
