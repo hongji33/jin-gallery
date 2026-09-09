@@ -536,7 +536,8 @@
       </div>
       <div class="card" style="margin-top:16px;">
         <h3 style="font-size:15px;margin-bottom:10px;">🖼️ 작품별 피드백 현황</h3>
-        <div class="tablewrap"><table class="rank" id="artRankTable"><thead><tr><th>등급</th><th>작품</th><th>작가</th><th>피드백 수</th><th>총점</th></tr></thead><tbody></tbody></table></div>
+        <p class="empty-note" style="text-align:left;padding:0 0 8px;">행을 클릭하면 작품 사진과 학생들이 남긴 감상 퀴즈 답변·한마디를 모두 볼 수 있어요.</p>
+        <div class="tablewrap"><table class="rank" id="artRankTable"><thead><tr><th>등급</th><th>작품</th><th>반</th><th>작가</th><th>피드백 수</th><th>총점</th></tr></thead><tbody></tbody></table></div>
       </div>
       <div class="card" style="margin-top:16px;">
         <h3 style="font-size:15px;margin-bottom:10px;">🔐 교사 비밀번호 변경</h3>
@@ -1001,19 +1002,24 @@
   function openArtwork(id){
     currentArtworkId = id;
     var fromView = document.querySelector(".view.active");
-    if(fromView && (fromView.dataset.view === "gallery" || fromView.dataset.view === "hof")) artworkReturnTab = fromView.dataset.view;
+    if(fromView && (fromView.dataset.view === "gallery" || fromView.dataset.view === "hof" || fromView.dataset.view === "dash")) artworkReturnTab = fromView.dataset.view;
     var a = artworksCache.filter(function(x){ return x.id===id; })[0];
     if(!a){ toast("작품을 찾을 수 없어요."); switchTab(artworkReturnTab); return; }
     switchTab("artwork");
+    var backLabels = { gallery:"← 전시관으로", hof:"← 명예의 전당으로", dash:"← 대시보드로" };
+    $("#btnBackGallery").textContent = backLabels[artworkReturnTab] || "← 전시관으로";
     var sc = artworkScore(a.id); var b = badgeFor(sc.total);
     var myResp = myProfile ? responsesCache.filter(function(r){ return r.artworkId===a.id && r.viewerId===myProfile.id; })[0] : null;
     var isAuthor = myProfile && myProfile.id === a.authorId;
+    var showFullAnswers = isAuthor || (artworkReturnTab === "dash" && isTeacherUnlocked());
 
     var quizHtml = "";
     if(isAuthor){
       quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">본인 작품이에요. 감상자들의 답변을 아래에서 확인해 보세요.</div>';
     } else if(myResp){
       quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">이미 참여했어요! 획득한 점수: <b class="num">'+myResp.score+'점</b></div>';
+    } else if(artworkReturnTab === "dash" && isTeacherUnlocked()){
+      quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">교사 열람 모드예요. 아래 감상평에서 학생들의 퀴즈 답변과 한마디를 모두 볼 수 있어요.</div>';
     } else if(!myProfile){
       quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">퀴즈에 참여하려면 먼저 [반 선택] 탭에서 프로필을 등록해 주세요.</div>';
     } else {
@@ -1027,9 +1033,16 @@
     var respHtml = responsesCache.filter(function(r){ return r.artworkId===a.id; })
       .sort(function(x,y){ return (y.createdAt||"").localeCompare(x.createdAt||""); })
       .map(function(r){
+        var answersHtml = "";
+        if(showFullAnswers && r.answers && r.answers.length){
+          answersHtml = '<div style="font-size:12.5px;color:var(--ink-soft);margin-top:2px;line-height:1.5;">' +
+            r.answers.map(function(ans,i){ return 'Q'+(i+1)+'. '+esc(ans); }).join('<br>') +
+          '</div>';
+        }
         return '<div class="response-row" style="flex-direction:column;align-items:stretch;gap:3px;">' +
           '<div style="display:flex;justify-content:space-between;"><span class="who">'+esc(r.viewerNickname)+'</span><span class="num" style="color:var(--brass-deep);">+'+r.score+'P</span></div>' +
           (r.critique ? '<div style="font-family:var(--font-display);font-size:14px;">"'+esc(r.critique)+'"</div>' : '') +
+          answersHtml +
         '</div>';
       })
       .join("") || '<p class="empty-note">아직 감상평이 없어요.</p>';
@@ -1204,16 +1217,19 @@
       return '<tr><td class="rk">'+(i+1)+'</td><td>'+esc(s.nickname)+'</td><td>'+esc(s.label)+'</td><td>'+barCell(s.total, studentMax, "c-celadon")+'</td></tr>';
     }).join("") : '<tr><td colspan="4" class="empty-note">데이터 없음</td></tr>';
 
-    // 작품 랭킹
+    // 작품 랭킹 (반 전체, 클릭하면 작품·글 전체를 볼 수 있어요)
     var artRows = artworksCache.map(function(a){
       var sc = artworkScore(a.id); var b = badgeFor(sc.total);
-      return { badge:b, title:a.title, author:a.authorNickname, count:sc.count, total:sc.total };
+      return { id:a.id, badge:b, title:a.title, cls: classLabel(a.grade,a.classNum), author:a.authorNickname, count:sc.count, total:sc.total };
     }).sort(function(x,y){ return y.total-x.total; });
     var artMax = Math.max(1, artRows[0] ? artRows[0].total : 1);
     $("#artRankTable tbody").innerHTML = artRows.length ? artRows.map(function(a){
       var barColor = a.badge.cls.replace("badge-","c-");
-      return '<tr><td><span class="badge '+a.badge.cls+'">'+a.badge.label+'</span></td><td>'+esc(a.title)+'</td><td>'+esc(a.author)+'</td><td class="num">'+a.count+'</td><td>'+barCell(a.total, artMax, barColor)+'</td></tr>';
-    }).join("") : '<tr><td colspan="5" class="empty-note">데이터 없음</td></tr>';
+      return '<tr class="row-click" data-art-id="'+a.id+'" style="cursor:pointer;"><td><span class="badge '+a.badge.cls+'">'+a.badge.label+'</span></td><td>'+esc(a.title)+'</td><td>'+esc(a.cls)+'</td><td>'+esc(a.author)+'</td><td class="num">'+a.count+'</td><td>'+barCell(a.total, artMax, barColor)+'</td></tr>';
+    }).join("") : '<tr><td colspan="6" class="empty-note">데이터 없음</td></tr>';
+    $all("#artRankTable tbody .row-click").forEach(function(tr){
+      tr.addEventListener("click", function(){ artworkReturnTab = "dash"; openArtwork(tr.dataset.artId); });
+    });
   }
 
   /* ---------------- 데이터 구독 ---------------- */
