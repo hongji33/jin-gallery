@@ -1,0 +1,1257 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>진품명품 Gallery</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;600;700;900&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- Firebase (무료 플랜으로 충분합니다) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<style>
+  /* ============ 토큰 ============ */
+  :root{
+    --wall:#F6F1E7;
+    --wall-2:#EFE7D6;
+    --frame:#D8CBAC;
+    --ink:#2B2420;
+    --ink-soft:#655A4C;
+    --brass:#B0813C;
+    --brass-deep:#8C6428;
+    --celadon:#4B6B5B;
+    --celadon-deep:#375042;
+    --seal:#A23B2E;
+    --seal-deep:#7E2D22;
+    --card-bg:#FFFDF8;
+    --border:#E1D5B8;
+    --shadow: 0 1px 2px rgba(43,36,32,.06), 0 8px 24px -12px rgba(43,36,32,.18);
+    --focus: #2E6E8E;
+    --radius-s:6px;
+    --radius-m:12px;
+    --radius-l:20px;
+    --font-display:'Gowun Batang', 'Noto Serif KR', serif;
+    --font-body:'Noto Sans KR', system-ui, sans-serif;
+    --font-mono:'IBM Plex Mono', ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --wall:#1B1712;
+      --wall-2:#211C15;
+      --frame:#3A3226;
+      --ink:#F1E9D8;
+      --ink-soft:#B9AC93;
+      --brass:#D9A855;
+      --brass-deep:#F0C374;
+      --celadon:#7FA491;
+      --celadon-deep:#9BC0AD;
+      --seal:#D2685A;
+      --seal-deep:#E28275;
+      --card-bg:#221D16;
+      --border:#3C3323;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 28px -14px rgba(0,0,0,.6);
+      --focus: #6FB3D8;
+    }
+  }
+  :root[data-theme="dark"]{
+    --wall:#1B1712;
+    --wall-2:#211C15;
+    --frame:#3A3226;
+    --ink:#F1E9D8;
+    --ink-soft:#B9AC93;
+    --brass:#D9A855;
+    --brass-deep:#F0C374;
+    --celadon:#7FA491;
+    --celadon-deep:#9BC0AD;
+    --seal:#D2685A;
+    --seal-deep:#E28275;
+    --card-bg:#221D16;
+    --border:#3C3323;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 28px -14px rgba(0,0,0,.6);
+    --focus: #6FB3D8;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--wall);
+    color:var(--ink);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  h1,h2,h3,h4{font-family:var(--font-display);font-weight:700;text-wrap:balance;margin:0;}
+  p{margin:0;}
+  button{font-family:inherit;}
+  ::selection{background:var(--brass);color:#231A0E;}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:2px;}
+
+  .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+
+  /* ============ 레이아웃 ============ */
+  .app{
+    display:grid;
+    grid-template-columns:232px 1fr;
+    min-height:100vh;
+  }
+  @media (max-width:860px){
+    .app{grid-template-columns:1fr;padding-bottom:64px;}
+  }
+
+  .sidebar{
+    background:var(--wall-2);
+    border-right:1px solid var(--border);
+    padding:22px 16px;
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+    position:sticky;
+    top:0;
+    height:100vh;
+  }
+  @media (max-width:860px){
+    .sidebar{
+      position:fixed; bottom:0; left:0; right:0; top:auto; height:auto;
+      flex-direction:row; align-items:center; justify-content:space-around;
+      padding:8px 6px; border-right:none; border-top:1px solid var(--border);
+      z-index:40; gap:4px;
+    }
+  }
+
+  .brand{display:flex;align-items:center;gap:10px;padding:0 4px;}
+  @media (max-width:860px){.brand{display:none;}}
+  .brand-seal{
+    width:38px;height:38px;border-radius:50%;
+    background:radial-gradient(circle at 32% 28%, var(--seal-deep), var(--seal) 70%);
+    display:flex;align-items:center;justify-content:center;
+    color:#FCEFE9;font-family:var(--font-display);font-weight:700;font-size:15px;
+    box-shadow:var(--shadow); flex-shrink:0;
+  }
+  .brand-text .title{font-size:16.5px;line-height:1.15;}
+  .brand-text .sub{font-size:11px;color:var(--ink-soft);letter-spacing:.04em;}
+
+  nav.tabs{display:flex;flex-direction:column;gap:4px;}
+  @media (max-width:860px){nav.tabs{flex-direction:row;flex:1;justify-content:space-around;}}
+  .tab-btn{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 12px;border-radius:var(--radius-m);
+    border:1px solid transparent;background:transparent;
+    color:var(--ink-soft); font-size:14px; font-weight:500;
+    cursor:pointer; text-align:left; transition:background .15s, color .15s;
+  }
+  .tab-btn .ic{font-size:17px;line-height:1;}
+  .tab-btn:hover{background:var(--card-bg);}
+  .tab-btn.active{background:var(--card-bg);color:var(--ink);border-color:var(--border);box-shadow:var(--shadow);}
+  @media (max-width:860px){
+    .tab-btn{flex-direction:column;gap:2px;padding:6px 4px;font-size:10px;border-radius:var(--radius-s);flex:1;}
+    .tab-btn span.label{white-space:nowrap;}
+  }
+
+  .id-chip{
+    margin-top:auto;
+    border:1px solid var(--border); border-radius:var(--radius-m);
+    background:var(--card-bg); padding:10px 12px; font-size:12px; color:var(--ink-soft);
+  }
+  .id-chip b{color:var(--ink);font-weight:600;display:block;font-size:13px;margin-bottom:2px;}
+  @media (max-width:860px){.id-chip{display:none;}#btnShowSiteQr{display:none;}}
+
+  main{padding:28px 32px 60px; max-width:1080px; width:100%;}
+  @media (max-width:860px){main{padding:18px 16px 24px;}}
+
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .page-head{margin-bottom:22px;}
+  .page-head .eyebrow{
+    font-family:var(--font-mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--brass-deep); margin-bottom:6px; display:block;
+  }
+  .page-head h2{font-size:26px;}
+  .page-head .desc{color:var(--ink-soft);font-size:13.5px;margin-top:6px;max-width:60ch;}
+
+  .card{
+    background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-l);
+    box-shadow:var(--shadow); padding:22px;
+  }
+  .grid{display:grid;gap:16px;}
+  .grid.cols-2{grid-template-columns:1fr 1fr;}
+  .grid.cols-3{grid-template-columns:repeat(3,1fr);}
+  @media (max-width:700px){.grid.cols-2,.grid.cols-3{grid-template-columns:1fr;}}
+
+  label{font-size:12.5px;font-weight:600;color:var(--ink-soft);display:block;margin-bottom:5px;}
+  input[type=text],input[type=number],select,textarea{
+    width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:var(--radius-s);
+    background:var(--wall);color:var(--ink);font-size:14px;font-family:inherit;
+  }
+  textarea{resize:vertical;min-height:64px;}
+  .field{margin-bottom:14px;}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    padding:10px 18px;border-radius:999px;border:1px solid transparent;
+    font-size:14px;font-weight:600;cursor:pointer;transition:filter .15s, transform .1s;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn-primary{background:linear-gradient(180deg,var(--brass),var(--brass-deep));color:#241905;}
+  .btn-primary:hover{filter:brightness(1.06);}
+  .btn-ghost{background:transparent;border-color:var(--border);color:var(--ink);}
+  .btn-ghost:hover{background:var(--wall-2);}
+  .btn-celadon{background:linear-gradient(180deg,var(--celadon),var(--celadon-deep));color:#0C1712;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  .badge{
+    display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;
+    font-size:11.5px;font-weight:700;letter-spacing:.02em;
+  }
+  .badge-treasure{background:linear-gradient(180deg,#8E6BC7,#5F3F97);color:#F4EEFC;}
+  .badge-masterpiece{background:linear-gradient(180deg,var(--brass),var(--brass-deep));color:#241905;}
+  .badge-genuine{background:linear-gradient(180deg,var(--celadon),var(--celadon-deep));color:#0C1712;}
+  .badge-standard{background:var(--wall-2);color:var(--ink-soft);border:1px solid var(--border);}
+
+  .toast{
+    position:fixed;bottom:78px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:var(--wall);padding:10px 18px;border-radius:999px;
+    font-size:13px;box-shadow:var(--shadow);z-index:100;opacity:0;pointer-events:none;
+    transition:opacity .2s, transform .2s;
+  }
+  @media (min-width:861px){.toast{bottom:24px;}}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+  @media print{
+    body *{visibility:hidden;}
+    #printArea, #printArea *, #bulkPrintArea, #bulkPrintArea *{visibility:visible;}
+    #printArea{position:fixed;top:0;left:0;width:100%;}
+    #bulkPrintArea{position:fixed;top:0;left:0;width:100%;}
+    .badge-print-item{break-inside:avoid;page-break-inside:avoid;}
+  }
+  [hidden]{display:none!important;}
+
+  .badge-print-grid{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:24px;
+  }
+  .badge-print-item{
+    border:2px solid #B0813C;border-radius:10px;padding:14px 12px;text-align:center;
+    font-family:'Noto Sans KR',sans-serif;color:#2B2420;
+  }
+  .badge-print-item .bp-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.1em;color:#8C6428;text-transform:uppercase;}
+  .badge-print-item .bp-nick{font-family:'Gowun Batang',serif;font-size:17px;margin:3px 0 1px;}
+  .badge-print-item .bp-meta{font-size:10.5px;color:#655A4C;margin-bottom:6px;}
+  .badge-print-item .bp-qr{background:#fff;display:inline-block;padding:6px;border:1px solid #E1D5B8;border-radius:6px;}
+
+  .label-card{
+    display:inline-block;text-align:left;border:2px solid #B0813C;border-radius:10px;
+    padding:22px 26px;font-family:'Noto Sans KR',sans-serif;color:#2B2420;min-width:300px;
+  }
+  .label-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;color:#8C6428;text-transform:uppercase;}
+  .label-title{font-family:'Gowun Batang',serif;font-size:20px;margin:4px 0 2px;}
+  .label-meta{font-size:11.5px;color:#655A4C;margin-bottom:2px;}
+  .label-qr-box{background:#fff;padding:10px;border:1px solid #E1D5B8;border-radius:8px;display:inline-block;margin-top:12px;}
+  .label-caption{font-size:10.5px;color:#655A4C;font-style:italic;margin-top:8px;}
+
+  /* ============ 갤러리 카드 ============ */
+  .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px;}
+  .art-card{
+    background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-l);
+    overflow:hidden;box-shadow:var(--shadow);cursor:pointer;display:flex;flex-direction:column;
+    transition:transform .15s;
+  }
+  .art-card:hover{transform:translateY(-3px);}
+  .art-frame{
+    aspect-ratio:4/3;background:var(--wall-2);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;
+  }
+  .art-frame img{width:100%;height:100%;object-fit:cover;}
+  .art-frame .ph{font-size:34px;color:var(--frame);}
+  .art-frame .qr-quick{
+    position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;
+    background:rgba(20,16,10,.62);color:#F6F1E7;border:1px solid rgba(255,255,255,.25);
+    display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;backdrop-filter:blur(2px);
+  }
+  .art-frame .qr-quick:hover{background:rgba(20,16,10,.82);}
+  .art-body{padding:13px 14px 15px;display:flex;flex-direction:column;gap:6px;flex:1;}
+  .art-title{font-family:var(--font-display);font-size:16.5px;font-weight:700;}
+  .art-meta{font-size:11.5px;color:var(--ink-soft);display:flex;justify-content:space-between;align-items:center;}
+  .art-stats{display:flex;gap:10px;font-size:11.5px;color:var(--ink-soft);margin-top:auto;}
+
+  .plaque{
+    border:1px solid var(--border);background:var(--wall-2);border-radius:var(--radius-s);
+    padding:8px 12px;font-size:12px;color:var(--ink-soft);
+  }
+
+  /* ============ 상세/퀴즈 뷰 ============ */
+  .detail-wrap{display:grid;grid-template-columns:1.1fr 1fr;gap:24px;align-items:start;}
+  @media (max-width:760px){.detail-wrap{grid-template-columns:1fr;}}
+  .detail-frame{
+    border:10px solid var(--frame); border-radius:4px; overflow:hidden; background:var(--wall-2);
+    box-shadow:var(--shadow);
+  }
+  .detail-frame img{width:100%;display:block;}
+  .quiz-q{border-top:1px dashed var(--border);padding-top:12px;margin-top:12px;}
+  .quiz-q:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+  .quiz-q .q-text{font-weight:600;font-size:14px;margin-bottom:6px;}
+
+  .response-row{
+    display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;
+  }
+  .response-row:last-child{border-bottom:none;}
+  .response-row .who{font-weight:700;flex-shrink:0;width:74px;}
+
+  /* ============ 성장 다짐 카드 ============ */
+  .pledge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px;}
+  .pledge-card{
+    background:linear-gradient(160deg,var(--card-bg),var(--wall-2));
+    border:1px solid var(--border);border-radius:var(--radius-l);padding:18px;
+    box-shadow:var(--shadow); position:relative; min-height:150px; display:flex;flex-direction:column;
+  }
+  .pledge-card::before{
+    content:"誓";font-family:var(--font-display);position:absolute;top:10px;right:14px;
+    font-size:26px;color:var(--brass);opacity:.35;
+  }
+  .pledge-name{font-weight:700;font-size:14px;margin-bottom:8px;}
+  .pledge-text{font-family:var(--font-display);font-size:16px;line-height:1.5;flex:1;}
+  .pledge-date{font-size:10.5px;color:var(--ink-soft);margin-top:10px;font-family:var(--font-mono);}
+
+  /* ============ 대시보드 ============ */
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:20px;}
+  @media (max-width:700px){.stat-row{grid-template-columns:repeat(2,1fr);}}
+  .stat-tile{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-m);padding:14px 16px;box-shadow:var(--shadow);}
+  .stat-tile .n{font-family:var(--font-mono);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .stat-tile .l{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+
+  table.rank{width:100%;border-collapse:collapse;font-size:13.5px;}
+  table.rank th{
+    text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);
+    padding:6px 10px;border-bottom:1px solid var(--border);
+  }
+  table.rank td{padding:9px 10px;border-bottom:1px solid var(--border);}
+  table.rank tr:last-child td{border-bottom:none;}
+  table.rank .rk{font-family:var(--font-mono);color:var(--brass-deep);font-weight:700;width:28px;}
+  .tablewrap{overflow-x:auto;}
+
+  .bar-cell{display:flex;align-items:center;gap:8px;min-width:160px;}
+  .bar-track{flex:1;height:14px;border-radius:7px;background:var(--wall-2);border:1px solid var(--border);overflow:hidden;position:relative;}
+  .bar-fill{height:100%;border-radius:6px 4px 4px 6px;min-width:3px;transition:width .3s ease;}
+  .bar-fill.c-brass{background:linear-gradient(90deg,var(--brass),var(--brass-deep));}
+  .bar-fill.c-celadon{background:linear-gradient(90deg,var(--celadon),var(--celadon-deep));}
+  .bar-fill.c-standard{background:var(--ink-soft);opacity:.45;}
+  .bar-fill.c-genuine{background:linear-gradient(90deg,var(--celadon),var(--celadon-deep));}
+  .bar-fill.c-masterpiece{background:linear-gradient(90deg,var(--brass),var(--brass-deep));}
+  .bar-fill.c-treasure{background:linear-gradient(90deg,#8E6BC7,#5F3F97);}
+  .bar-num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:12.5px;font-weight:700;color:var(--ink);width:38px;text-align:right;flex-shrink:0;}
+
+  /* ============ QR / 모달 ============ */
+  .modal-backdrop{
+    position:fixed;inset:0;background:rgba(20,16,10,.55);display:flex;align-items:center;justify-content:center;
+    z-index:80; padding:20px;
+  }
+  .modal-box{
+    background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius-l);
+    padding:24px;max-width:360px;width:100%;box-shadow:var(--shadow);text-align:center;
+  }
+  .modal-box h3{font-size:18px;margin-bottom:4px;}
+  .modal-box .qr-holder{
+    background:#fff;padding:14px;border-radius:var(--radius-m);display:inline-block;margin:14px 0 10px;
+    border:1px solid var(--border);
+  }
+  .modal-actions{display:flex;gap:8px;justify-content:center;margin-top:10px;}
+  .close-x{position:absolute;top:14px;right:16px;background:none;border:none;font-size:18px;color:var(--ink-soft);cursor:pointer;}
+
+  .empty-note{color:var(--ink-soft);font-size:13.5px;padding:20px;text-align:center;}
+
+  .segmented{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
+  .seg-btn{
+    padding:6px 13px;border-radius:999px;border:1px solid var(--border);background:var(--card-bg);
+    font-size:12.5px;color:var(--ink-soft);cursor:pointer;
+  }
+  .seg-btn.active{background:var(--celadon);color:#0C1712;border-color:var(--celadon-deep);font-weight:600;}
+
+  .theme-toggle{
+    border:1px solid var(--border);background:var(--card-bg);border-radius:999px;width:34px;height:34px;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft);font-size:15px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-seal">眞</div>
+      <div class="brand-text">
+        <div class="title">진품명품</div>
+        <div class="sub">GALLERY &amp; QUIZ</div>
+      </div>
+    </div>
+    <nav class="tabs" id="tabNav">
+      <button class="tab-btn" data-tab="setup"><span class="ic">🎫</span><span class="label">반 선택</span></button>
+      <button class="tab-btn" data-tab="gallery"><span class="ic">🖼️</span><span class="label">작품 전시·퀴즈</span></button>
+      <button class="tab-btn" data-tab="register"><span class="ic">➕</span><span class="label">작품 등록</span></button>
+      <button class="tab-btn" data-tab="pledge"><span class="ic">🖋️</span><span class="label">성장 다짐</span></button>
+      <button class="tab-btn" data-tab="dash"><span class="ic">📊</span><span class="label">교사 대시보드</span></button>
+    </nav>
+    <div class="id-chip" id="idChip">
+      <b>미등록 감상자</b>
+      반을 선택하고 닉네임을 등록해 주세요.
+    </div>
+    <button class="btn btn-ghost" id="btnShowSiteQr" style="width:100%;font-size:12.5px;">📱 앱 입장 QR 보기</button>
+  </aside>
+
+  <main>
+    <!-- 반 선택 / 프로필 -->
+    <section class="view" data-view="setup">
+      <div class="page-head">
+        <span class="eyebrow">Step 1 · Profile</span>
+        <h2>반과 닉네임을 등록해 주세요</h2>
+        <p class="desc">실명 대신 닉네임을 사용해요. 등록하면 나만의 QR 명찰이 자동으로 만들어집니다.</p>
+      </div>
+      <div class="grid cols-2">
+        <div class="card">
+          <div class="field">
+            <label>학년</label>
+            <select id="inGrade"><option value="1">1학년</option><option value="2">2학년</option><option value="3" selected>3학년</option></select>
+          </div>
+          <div class="field">
+            <label>반</label>
+            <select id="inClass"></select>
+          </div>
+          <div class="field">
+            <label>번호</label>
+            <input type="number" id="inNumber" min="1" max="40" placeholder="예: 15">
+          </div>
+          <div class="field">
+            <label>닉네임</label>
+            <input type="text" id="inNickname" maxlength="12" placeholder="예: 청자소년">
+          </div>
+          <button class="btn btn-primary" id="btnSaveProfile" style="width:100%">등록하고 명찰 QR 만들기</button>
+          <p class="empty-note" id="setupHint" style="padding:10px 0 0;text-align:left;"></p>
+        </div>
+        <div class="card" id="profileCard" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;">
+          <p class="empty-note">등록 후 이곳에 명찰 QR 코드가 표시됩니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 갤러리 -->
+    <section class="view" data-view="gallery">
+      <div class="page-head">
+        <span class="eyebrow">Step 2 · Exhibition</span>
+        <h2 id="galleryTitle">작품 전시관</h2>
+        <p class="desc">작품을 감상하고 퀴즈에 답하면 감상자와 작가 모두에게 포인트가 쌓여요.</p>
+      </div>
+      <div class="segmented" id="classFilter"></div>
+      <div class="gallery-grid" id="galleryGrid"><p class="empty-note">불러오는 중…</p></div>
+    </section>
+
+    <!-- 작품 상세 -->
+    <section class="view" data-view="artwork">
+      <button class="btn btn-ghost" id="btnBackGallery" style="margin-bottom:14px;">← 전시관으로</button>
+      <div id="artworkDetail"></div>
+    </section>
+
+    <!-- 작품 등록 -->
+    <section class="view" data-view="register">
+      <div class="page-head">
+        <span class="eyebrow">Step 3 · Register</span>
+        <h2>내 작품 올리기</h2>
+        <p class="desc">작품 사진과 소개, 그리고 감상자에게 던질 퀴즈 3가지를 등록하세요.</p>
+      </div>
+      <div class="grid cols-2">
+        <div class="card">
+          <div class="field">
+            <label>작품 이미지</label>
+            <input type="file" id="inImage" accept="image/*">
+          </div>
+          <div class="field"><label>작품 제목</label><input type="text" id="inTitle" maxlength="30" placeholder="예: 민화 속 까치호랑이"></div>
+          <div class="field"><label>사용한 재료·기법</label><input type="text" id="inMedium" maxlength="30" placeholder="예: 한지에 채색, 아크릴 물감"></div>
+          <div class="field"><label>작품 소개</label><textarea id="inDesc" maxlength="300" placeholder="작품에 담긴 이야기나 표현 의도를 소개해 주세요."></textarea></div>
+          <div class="field"><label>퀴즈 1</label><input type="text" id="inQ1" maxlength="60" placeholder="예: 이 작품에서 사용한 주요 색은?"></div>
+          <div class="field"><label>퀴즈 2</label><input type="text" id="inQ2" maxlength="60" placeholder="예: 작가가 표현하고 싶었던 감정은?"></div>
+          <div class="field"><label>퀴즈 3</label><input type="text" id="inQ3" maxlength="60" placeholder="예: 이 작품의 제목이 의미하는 것은?"></div>
+          <button class="btn btn-primary" id="btnSubmitArt" style="width:100%">작품 등록하고 QR 발급받기</button>
+          <p class="empty-note" id="registerHint" style="padding:10px 0 0;text-align:left;"></p>
+        </div>
+        <div class="card">
+          <label>미리보기</label>
+          <div class="art-frame" id="imgPreview" style="border-radius:var(--radius-m);border:1px solid var(--border);"><span class="ph">🖼️</span></div>
+          <p class="empty-note" style="text-align:left;padding-top:10px;">등록을 마치면 작품 옆에 붙일 QR 카드를 바로 인쇄할 수 있어요.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 성장 다짐 -->
+    <section class="view" data-view="pledge">
+      <div class="page-head">
+        <span class="eyebrow">Step 4 · Reflection</span>
+        <h2>성장 다짐 카드</h2>
+        <p class="desc">동료들의 피드백과 내가 받은 포인트를 돌아보며, 배운 점과 보완할 점을 한 문장으로 남겨 보세요.</p>
+      </div>
+      <div class="card" style="margin-bottom:20px;">
+        <div class="field"><label>나의 다짐 (한 문장)</label><textarea id="inPledge" maxlength="80" placeholder="예: 색을 더 과감하게 써서 다음엔 '명품' 등급을 받아볼래요."></textarea></div>
+        <button class="btn btn-celadon" id="btnSavePledge">다짐 카드 만들기</button>
+        <p class="empty-note" id="pledgeHint" style="padding:10px 0 0;text-align:left;"></p>
+      </div>
+      <div class="segmented" id="pledgeFilter"></div>
+      <div class="pledge-grid" id="pledgeGrid"><p class="empty-note">불러오는 중…</p></div>
+    </section>
+
+    <!-- 교사 대시보드 -->
+    <section class="view" data-view="dash">
+      <div class="page-head">
+        <span class="eyebrow">For Teachers</span>
+        <h2>결과 대시보드</h2>
+        <p class="desc">반별 랭킹, 작품 피드백 수, 학생 포인트가 실시간으로 집계됩니다.</p>
+      </div>
+      <div class="stat-row" id="dashStats"></div>
+      <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:180px;">
+          <h3 style="font-size:15px;margin-bottom:2px;">🎫 학생 명찰 일괄 인쇄</h3>
+          <p class="empty-note" style="text-align:left;padding:0;">학생들이 각자 인쇄할 필요 없이, 선생님이 여기서 한 번에 인쇄할 수 있어요.</p>
+        </div>
+        <select id="bulkPrintClass" style="width:auto;min-width:140px;"><option value="all">전체 학생</option></select>
+        <button class="btn btn-celadon" id="btnBulkPrint">🖨️ 명찰 모아 인쇄</button>
+      </div>
+      <div class="grid cols-2">
+        <div class="card">
+          <h3 style="font-size:15px;margin-bottom:10px;">🏫 반별 랭킹</h3>
+          <div class="tablewrap"><table class="rank" id="classRankTable"><thead><tr><th>순위</th><th>반</th><th>총점</th></tr></thead><tbody></tbody></table></div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:15px;margin-bottom:10px;">🧑‍🎨 학생 포인트 랭킹</h3>
+          <div class="tablewrap"><table class="rank" id="studentRankTable"><thead><tr><th>순위</th><th>닉네임</th><th>반</th><th>포인트</th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <h3 style="font-size:15px;margin-bottom:10px;">🖼️ 작품별 피드백 현황</h3>
+        <div class="tablewrap"><table class="rank" id="artRankTable"><thead><tr><th>등급</th><th>작품</th><th>작가</th><th>피드백 수</th><th>총점</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- QR 모달 -->
+<div class="modal-backdrop" id="qrModal" hidden>
+  <div class="modal-box" style="position:relative;">
+    <button class="close-x" id="qrClose">✕</button>
+    <h3 id="qrTitle">QR 코드</h3>
+    <p class="plaque" id="qrSub" style="display:inline-block;"></p>
+    <div class="qr-holder"><div id="qrCanvas"></div></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="qrPrintBtn">🖨️ 인쇄하기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 교사 PIN 모달 -->
+<div class="modal-backdrop" id="pinModal" hidden>
+  <div class="modal-box" style="position:relative;">
+    <button class="close-x" id="pinClose">✕</button>
+    <h3>🔒 교사 전용</h3>
+    <p class="plaque" style="display:inline-block;margin-top:6px;">비밀번호 4자리를 입력해 주세요</p>
+    <div class="field" style="text-align:left;margin-top:16px;">
+      <input type="password" id="pinInput" inputmode="numeric" maxlength="4" placeholder="••••" style="text-align:center;font-size:20px;letter-spacing:.3em;">
+    </div>
+    <p class="empty-note" id="pinHint" style="text-align:left;padding:2px 0 0;color:var(--seal);"></p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="pinSubmit" style="width:100%;">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- 앱 입장 QR 모달 (팝업) -->
+<div class="modal-backdrop" id="siteQrModal" hidden>
+  <div class="modal-box" style="position:relative;">
+    <button class="close-x" id="siteQrClose">✕</button>
+    <div class="brand-seal" style="margin:0 auto;">眞</div>
+    <h3 style="margin-top:10px;">진품명품 갤러리 입장 QR</h3>
+    <p class="plaque" style="display:inline-block;">스마트폰 카메라로 스캔하면 바로 들어와요</p>
+    <div class="qr-holder"><div id="siteQrCanvas"></div></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="siteQrPrintBtn">🖨️ 인쇄하기</button>
+      <button class="btn btn-primary" id="siteQrEnterBtn">둘러보기 시작</button>
+    </div>
+  </div>
+</div>
+
+<!-- 인쇄 영역 (전시 캡션표 스타일) -->
+<div id="printArea" style="display:none;">
+  <div style="text-align:center;padding:40px;">
+    <div class="label-card">
+      <div class="label-eyebrow">Jinpummyeongpum Exhibition Label</div>
+      <div class="label-title" id="printTitle"></div>
+      <div class="label-meta" id="printSub"></div>
+      <div class="label-meta" id="printMedium"></div>
+      <div style="text-align:center;"><div class="label-qr-box"><div id="printQr"></div></div></div>
+      <div class="label-caption">스마트폰으로 QR을 스캔해 작품을 감상하고 퀴즈에 참여해 보세요.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 일괄 명찰 인쇄 영역 -->
+<div id="bulkPrintArea" style="display:none;">
+  <div class="badge-print-grid" id="bulkPrintGrid"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- 상태 ---------------- */
+  var db = null;
+  var myProfile = null; // {id, grade, classNum, number, nickname}
+  var artworksCache = [];   // artworks docs {id,...}
+  var studentsCache = [];   // students docs
+  var responsesCache = [];  // responses docs
+  var pledgesCache = [];    // reflections docs
+  var galleryClassFilter = "all";
+  var pledgeClassFilter = "all";
+  var currentArtworkId = null;
+
+  /* ---------------- 유틸 ---------------- */
+  function $(sel){ return document.querySelector(sel); }
+  function $all(sel){ return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]; }); }
+  function classLabel(grade, classNum){ return grade + "학년 " + classNum + "반"; }
+  function classId(grade, classNum){ return grade + "-" + classNum; }
+  function studentId(grade, classNum, number){ return grade + "-" + classNum + "-" + number; }
+  function nowIso(){ return new Date().toISOString(); }
+  function toast(msg){
+    var t = $("#toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toast._h); toast._h = setTimeout(function(){ t.classList.remove("show"); }, 2400);
+  }
+  function pageUrl(params){
+    var u = new URL(location.href);
+    u.search = "";
+    Object.keys(params).forEach(function(k){ u.searchParams.set(k, params[k]); });
+    return u.toString();
+  }
+  function saveLocalProfile(p){ try{ localStorage.setItem("jpmp_profile", JSON.stringify(p)); }catch(e){} }
+  function loadLocalProfile(){ try{ var s = localStorage.getItem("jpmp_profile"); return s ? JSON.parse(s) : null; }catch(e){ return null; } }
+
+  /* ---------------- 탭 / 뷰 ---------------- */
+  function switchTab(name, opts){
+    opts = opts || {};
+    $all(".view").forEach(function(v){ v.classList.toggle("active", v.dataset.view === name); });
+    $all(".tab-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.tab === name); });
+    if(!opts.keepScroll) window.scrollTo({top:0, behavior:"instant"});
+    if(name === "dash") renderDashboard();
+    if(name === "gallery") renderGalleryFilters();
+    if(name === "pledge") renderPledgeFilters();
+  }
+  var TEACHER_PIN = "1234";
+  function isTeacherUnlocked(){ try{ return sessionStorage.getItem("jpmp_teacher_ok") === "1"; }catch(e){ return false; } }
+  function setTeacherUnlocked(){ try{ sessionStorage.setItem("jpmp_teacher_ok", "1"); }catch(e){} }
+
+  $all(".tab-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      if(btn.dataset.tab === "dash" && !isTeacherUnlocked()){
+        openPinModal();
+        return;
+      }
+      switchTab(btn.dataset.tab);
+    });
+  });
+  $("#btnBackGallery").addEventListener("click", function(){ switchTab("gallery"); });
+
+  /* ---------------- 교사 PIN 잠금 ---------------- */
+  function openPinModal(){
+    $("#pinInput").value = "";
+    $("#pinHint").textContent = "";
+    $("#pinModal").hidden = false;
+    setTimeout(function(){ $("#pinInput").focus(); }, 50);
+  }
+  function closePinModal(){ $("#pinModal").hidden = true; }
+  function tryUnlock(){
+    if($("#pinInput").value.trim() === TEACHER_PIN){
+      setTeacherUnlocked();
+      closePinModal();
+      switchTab("dash");
+    } else {
+      $("#pinHint").textContent = "비밀번호가 올바르지 않아요.";
+    }
+  }
+  $("#pinClose").addEventListener("click", closePinModal);
+  $("#pinSubmit").addEventListener("click", tryUnlock);
+  $("#pinInput").addEventListener("keydown", function(e){ if(e.key === "Enter") tryUnlock(); });
+
+  /* ---------------- 프로필 ---------------- */
+  function populateClassSelect(){
+    var sel = $("#inClass"); sel.innerHTML = "";
+    for(var i=1;i<=10;i++){ var o=document.createElement("option"); o.value=i; o.textContent=i+"반"; sel.appendChild(o); }
+  }
+  populateClassSelect();
+
+  function renderIdChip(){
+    var chip = $("#idChip");
+    if(myProfile){
+      var pts = getStudentDoc(myProfile.id);
+      chip.innerHTML = "<b>" + esc(myProfile.nickname) + "</b>" + classLabel(myProfile.grade, myProfile.classNum) + " · " + myProfile.number + "번 · " + (pts ? (pts.points||0)+(pts.authorPoints||0) : 0) + "P";
+    } else {
+      chip.innerHTML = "<b>미등록 감상자</b>반을 선택하고 닉네임을 등록해 주세요.";
+    }
+  }
+
+  function getStudentDoc(id){
+    for(var i=0;i<studentsCache.length;i++){ if(studentsCache[i].id === id) return studentsCache[i]; }
+    return null;
+  }
+
+  function renderProfileQr(){
+    var box = $("#profileCard");
+    if(!myProfile){ box.innerHTML = '<p class="empty-note">등록 후 이곳에 명찰 QR 코드가 표시됩니다.</p>'; return; }
+    box.innerHTML = '<div class="badge badge-genuine">나의 명찰</div>' +
+      '<div style="font-family:var(--font-display);font-size:20px;margin-top:4px;">' + esc(myProfile.nickname) + '</div>' +
+      '<div class="plaque">' + classLabel(myProfile.grade, myProfile.classNum) + ' · ' + myProfile.number + '번</div>' +
+      '<div class="qr-holder" id="profileQrHolder"></div>' +
+      '<button class="btn btn-ghost" id="btnPrintProfile">🖨️ 명찰 인쇄</button>';
+    renderQrInto("#profileQrHolder", pageUrl({view:"profile", id: myProfile.id}), 132);
+    $("#btnPrintProfile").addEventListener("click", function(){
+      printQr(myProfile.nickname + " 님의 명찰", classLabel(myProfile.grade, myProfile.classNum) + " · " + myProfile.number + "번", pageUrl({view:"profile", id: myProfile.id}));
+    });
+  }
+
+  function upsertStudent(profile){
+    if(!db) { toast("데이터 연결을 확인하고 있어요. 잠시 후 다시 시도해 주세요."); return; }
+    var ref = db.doc("students/" + profile.id);
+    ref.get().then(function(snap){
+      if(snap.exists){
+        return ref.update({ nickname: profile.nickname });
+      } else {
+        return ref.set({
+          grade: profile.grade, classNum: profile.classNum, number: profile.number,
+          nickname: profile.nickname, points: 0, authorPoints: 0, createdAt: nowIso()
+        });
+      }
+    }).then(function(){
+      myProfile = profile; saveLocalProfile(profile);
+      renderIdChip(); renderProfileQr();
+      toast("등록 완료! QR 명찰이 만들어졌어요.");
+    }).catch(function(err){
+      console.error(err); toast("등록 중 문제가 발생했어요: " + (err && err.code || "오류"));
+    });
+  }
+
+  $("#btnSaveProfile").addEventListener("click", function(){
+    var grade = parseInt($("#inGrade").value,10);
+    var classNum = parseInt($("#inClass").value,10);
+    var number = parseInt($("#inNumber").value,10);
+    var nickname = $("#inNickname").value.trim();
+    var hint = $("#setupHint");
+    if(!number || number<1){ hint.textContent = "번호를 입력해 주세요."; return; }
+    if(!nickname){ hint.textContent = "닉네임을 입력해 주세요."; return; }
+    hint.textContent = "";
+    upsertStudent({ id: studentId(grade,classNum,number), grade:grade, classNum:classNum, number:number, nickname:nickname });
+  });
+
+  /* ---------------- QR 공통 ---------------- */
+  function renderQrInto(selector, text, size){
+    var el = $(selector); if(!el) return;
+    el.innerHTML = "";
+    if(window.QRCode){
+      new QRCode(el, { text: text, width: size||140, height: size||140, correctLevel: QRCode.CorrectLevel.M });
+    } else {
+      el.textContent = "QR 라이브러리를 불러오지 못했어요.";
+    }
+  }
+  function printQr(title, sub, url, medium){
+    $("#printTitle").textContent = title;
+    $("#printSub").textContent = sub;
+    $("#printMedium").textContent = medium || "";
+    $("#printMedium").style.display = medium ? "" : "none";
+    var holder = $("#printQr"); holder.innerHTML = "";
+    if(window.QRCode){ new QRCode(holder, { text:url, width:150, height:150, correctLevel: QRCode.CorrectLevel.M }); }
+    var area = $("#printArea"); area.style.display = "block";
+    setTimeout(function(){ window.print(); area.style.display = "none"; }, 60);
+  }
+
+  $("#qrClose").addEventListener("click", function(){ $("#qrModal").hidden = true; });
+  $("#qrPrintBtn").addEventListener("click", function(){
+    var t = $("#qrModal").dataset.title, s = $("#qrModal").dataset.sub, u = $("#qrModal").dataset.url, m = $("#qrModal").dataset.medium;
+    printQr(t, s, u, m);
+  });
+  function openQrModal(title, sub, url, medium){
+    $("#qrTitle").textContent = title; $("#qrSub").textContent = sub;
+    var m = $("#qrModal"); m.dataset.title=title; m.dataset.sub=sub; m.dataset.url=url; m.dataset.medium=medium||"";
+    m.hidden = false;
+    renderQrInto("#qrCanvas", url, 160);
+  }
+
+  /* ---------------- 명찰 일괄 인쇄 ---------------- */
+  var btnBulkPrint = $("#btnBulkPrint");
+  if(btnBulkPrint){
+    btnBulkPrint.addEventListener("click", function(){
+      var filter = $("#bulkPrintClass") ? $("#bulkPrintClass").value : "all";
+      var list = studentsCache.filter(function(s){ return filter==="all" || classId(s.grade,s.classNum)===filter; })
+        .sort(function(a,b){ return (a.grade-b.grade) || (a.classNum-b.classNum) || (a.number-b.number); });
+      if(!list.length){ toast("인쇄할 학생이 없어요. 먼저 학생들이 등록했는지 확인해 주세요."); return; }
+      var grid = $("#bulkPrintGrid");
+      grid.innerHTML = list.map(function(s,i){
+        return '<div class="badge-print-item">' +
+          '<div class="bp-eyebrow">Jinpummyeongpum Pass</div>' +
+          '<div class="bp-nick">'+esc(s.nickname)+'</div>' +
+          '<div class="bp-meta">'+classLabel(s.grade,s.classNum)+' · '+s.number+'번</div>' +
+          '<div class="bp-qr" id="bpqr_'+i+'"></div>' +
+        '</div>';
+      }).join("");
+      list.forEach(function(s,i){
+        renderQrInto("#bpqr_"+i, pageUrl({view:"profile", id:s.id}), 88);
+      });
+      var area = $("#bulkPrintArea"); area.style.display = "block";
+      setTimeout(function(){ window.print(); area.style.display = "none"; }, 120);
+    });
+  }
+
+  /* ---------------- 작품 등록 ---------------- */
+  var pendingImageData = null;
+  $("#inImage").addEventListener("change", function(e){
+    var file = e.target.files[0]; if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var img = new Image();
+      img.onload = function(){
+        var maxDim = 1000;
+        var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        var w = Math.round(img.width*scale), h = Math.round(img.height*scale);
+        var canvas = document.createElement("canvas"); canvas.width=w; canvas.height=h;
+        var ctx = canvas.getContext("2d"); ctx.drawImage(img,0,0,w,h);
+        var quality = 0.72;
+        var data = canvas.toDataURL("image/jpeg", quality);
+        while(data.length > 700000 && quality > 0.28){
+          quality -= 0.1; data = canvas.toDataURL("image/jpeg", quality);
+        }
+        if(data.length > 700000){
+          // 그래도 크면 크기를 더 줄인다 (Firestore 문서 1MiB 제한 대비)
+          var w2 = Math.round(w*0.7), h2 = Math.round(h*0.7);
+          canvas.width=w2; canvas.height=h2; ctx.drawImage(img,0,0,w2,h2);
+          data = canvas.toDataURL("image/jpeg", 0.5);
+        }
+        pendingImageData = data;
+        $("#imgPreview").innerHTML = '<img src="'+data+'" alt="미리보기">';
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  $("#btnSubmitArt").addEventListener("click", function(){
+    var hint = $("#registerHint");
+    if(!myProfile){ hint.textContent = "먼저 [반 선택] 탭에서 프로필을 등록해 주세요."; return; }
+    var title = $("#inTitle").value.trim();
+    var medium = $("#inMedium").value.trim();
+    var desc = $("#inDesc").value.trim();
+    var q1 = $("#inQ1").value.trim(), q2 = $("#inQ2").value.trim(), q3 = $("#inQ3").value.trim();
+    if(!title){ hint.textContent = "작품 제목을 입력해 주세요."; return; }
+    if(!q1 || !q2 || !q3){ hint.textContent = "퀴즈 3가지를 모두 입력해 주세요."; return; }
+    if(!pendingImageData){ hint.textContent = "작품 이미지를 선택해 주세요."; return; }
+    if(!db){ hint.textContent = "데이터 연결을 확인하고 있어요."; return; }
+    hint.textContent = "등록 중…";
+    db.collection("artworks").add({
+      authorId: myProfile.id, authorNickname: myProfile.nickname,
+      grade: myProfile.grade, classNum: myProfile.classNum,
+      title: title, medium: medium, desc: desc, quiz: [q1,q2,q3],
+      imageData: pendingImageData, createdAt: nowIso()
+    }).then(function(ref){
+      hint.textContent = "";
+      toast("작품이 등록되었어요!");
+      var url = pageUrl({view:"artwork", id: ref.id});
+      openQrModal(title, "작품 QR · " + myProfile.nickname, url, medium);
+      $("#inTitle").value=""; $("#inMedium").value=""; $("#inDesc").value=""; $("#inQ1").value=""; $("#inQ2").value=""; $("#inQ3").value="";
+      $("#inImage").value=""; $("#imgPreview").innerHTML='<span class="ph">🖼️</span>'; pendingImageData=null;
+    }).catch(function(err){
+      console.error(err);
+      hint.textContent = "등록 실패: " + (err && err.code === "quota_exceeded" ? "저장 공간이 가득 찼어요." : "잠시 후 다시 시도해 주세요.");
+    });
+  });
+
+  /* ---------------- 갤러리 ---------------- */
+  function artworkScore(artId){
+    var total = 0, count = 0;
+    responsesCache.forEach(function(r){ if(r.artworkId === artId){ total += (r.score||0); count++; } });
+    return { total: total, count: count };
+  }
+  function badgeFor(total){
+    if(total >= 32) return { cls:"badge-treasure", label:"국보" };
+    if(total >= 18) return { cls:"badge-masterpiece", label:"명품" };
+    if(total >= 8) return { cls:"badge-genuine", label:"진품" };
+    return { cls:"badge-standard", label:"전시중" };
+  }
+
+  function classListFromCache(){
+    var set = {};
+    studentsCache.concat(artworksCache).forEach(function(d){ set[classId(d.grade,d.classNum)] = classLabel(d.grade,d.classNum); });
+    return Object.keys(set).sort().map(function(k){ return {id:k, label:set[k]}; });
+  }
+
+  function renderGalleryFilters(){
+    var wrap = $("#classFilter");
+    var classes = classListFromCache();
+    var html = '<button class="seg-btn ' + (galleryClassFilter==="all"?"active":"") + '" data-c="all">전체</button>';
+    classes.forEach(function(c){
+      html += '<button class="seg-btn ' + (galleryClassFilter===c.id?"active":"") + '" data-c="' + c.id + '">' + c.label + '</button>';
+    });
+    wrap.innerHTML = html;
+    $all("#classFilter .seg-btn").forEach(function(b){
+      b.addEventListener("click", function(){ galleryClassFilter = b.dataset.c; renderGallery(); renderGalleryFilters(); });
+    });
+  }
+
+  function renderGallery(){
+    var grid = $("#galleryGrid");
+    var list = artworksCache.filter(function(a){ return galleryClassFilter==="all" || classId(a.grade,a.classNum)===galleryClassFilter; });
+    if(!list.length){ grid.innerHTML = '<p class="empty-note">아직 등록된 작품이 없어요. [작품 등록] 탭에서 첫 작품을 올려보세요!</p>'; return; }
+    grid.innerHTML = list.map(function(a){
+      var sc = artworkScore(a.id); var b = badgeFor(sc.total);
+      return '<div class="art-card" data-id="'+a.id+'">' +
+        '<div class="art-frame">' + (a.imageData ? '<img src="'+a.imageData+'" alt="">' : '<span class="ph">🖼️</span>') +
+          '<button class="qr-quick" data-qr="'+a.id+'" title="작품 QR 보기">▦</button>' +
+        '</div>' +
+        '<div class="art-body">' +
+          '<div class="art-meta"><span class="badge '+b.cls+'">'+b.label+'</span><span>'+classLabel(a.grade,a.classNum)+'</span></div>' +
+          '<div class="art-title">'+esc(a.title)+'</div>' +
+          '<div class="art-meta"><span>by '+esc(a.authorNickname)+'</span>'+(a.medium?'<span>'+esc(a.medium)+'</span>':'')+'</div>' +
+          '<div class="art-stats"><span>💬 '+sc.count+'</span><span>⭐ '+sc.total+'점</span></div>' +
+        '</div></div>';
+    }).join("");
+    $all(".art-card").forEach(function(card){
+      card.addEventListener("click", function(){ openArtwork(card.dataset.id); });
+    });
+    $all(".qr-quick").forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.stopPropagation();
+        var a = artworksCache.filter(function(x){ return x.id===btn.dataset.qr; })[0];
+        if(a) openQrModal(a.title, "작품 QR · " + a.authorNickname, pageUrl({view:"artwork", id:a.id}), a.medium);
+      });
+    });
+  }
+
+  function openArtwork(id){
+    currentArtworkId = id;
+    var a = artworksCache.filter(function(x){ return x.id===id; })[0];
+    if(!a){ toast("작품을 찾을 수 없어요."); switchTab("gallery"); return; }
+    switchTab("artwork");
+    var sc = artworkScore(a.id); var b = badgeFor(sc.total);
+    var myResp = myProfile ? responsesCache.filter(function(r){ return r.artworkId===a.id && r.viewerId===myProfile.id; })[0] : null;
+    var isAuthor = myProfile && myProfile.id === a.authorId;
+
+    var quizHtml = "";
+    if(isAuthor){
+      quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">본인 작품이에요. 감상자들의 답변을 아래에서 확인해 보세요.</div>';
+    } else if(myResp){
+      quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">이미 참여했어요! 획득한 점수: <b class="num">'+myResp.score+'점</b></div>';
+    } else if(!myProfile){
+      quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">퀴즈에 참여하려면 먼저 [반 선택] 탭에서 프로필을 등록해 주세요.</div>';
+    } else {
+      quizHtml = a.quiz.map(function(q,i){
+        return '<div class="quiz-q"><div class="q-text">Q'+(i+1)+'. '+esc(q)+'</div><textarea id="qa_'+i+'" placeholder="나의 감상평을 적어보세요"></textarea></div>';
+      }).join("") +
+      '<div class="quiz-q"><div class="q-text">작가에게 한마디 (칭찬·총평)</div><input type="text" id="qaCritique" maxlength="60" placeholder="예: 색 대비가 인상적이에요!"></div>' +
+      '<button class="btn btn-primary" id="btnSubmitQuiz" style="margin-top:14px;width:100%;">답변 제출하고 포인트 받기</button><p class="empty-note" id="quizHint" style="text-align:left;"></p>';
+    }
+
+    var respHtml = responsesCache.filter(function(r){ return r.artworkId===a.id; })
+      .sort(function(x,y){ return (y.createdAt||"").localeCompare(x.createdAt||""); })
+      .map(function(r){
+        return '<div class="response-row" style="flex-direction:column;align-items:stretch;gap:3px;">' +
+          '<div style="display:flex;justify-content:space-between;"><span class="who">'+esc(r.viewerNickname)+'</span><span class="num" style="color:var(--brass-deep);">+'+r.score+'P</span></div>' +
+          (r.critique ? '<div style="font-family:var(--font-display);font-size:14px;">"'+esc(r.critique)+'"</div>' : '') +
+        '</div>';
+      })
+      .join("") || '<p class="empty-note">아직 감상평이 없어요.</p>';
+
+    $("#artworkDetail").innerHTML =
+      '<div class="detail-wrap">' +
+        '<div>' +
+          '<div class="detail-frame">' + (a.imageData ? '<img src="'+a.imageData+'" alt="">' : '') + '</div>' +
+          '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">' +
+            '<span class="badge '+b.cls+'">'+b.label+'</span>' +
+            '<span class="plaque">'+classLabel(a.grade,a.classNum)+' · '+esc(a.authorNickname)+(a.medium?' · '+esc(a.medium):'')+'</span>' +
+            '<button class="btn btn-ghost" id="btnShowArtQr" style="margin-left:auto;">📱 작품 QR</button>' +
+          '</div>' +
+        '</div>' +
+        '<div>' +
+          '<h2 style="font-size:22px;">'+esc(a.title)+'</h2>' +
+          '<p style="color:var(--ink-soft);font-size:13.5px;margin-top:8px;">'+esc(a.desc||"작품 소개가 없습니다.")+'</p>' +
+          '<div class="card" style="margin-top:16px;">' +
+            '<h3 style="font-size:14px;margin-bottom:4px;">감상 퀴즈</h3>' + quizHtml +
+          '</div>' +
+          '<div class="card" style="margin-top:16px;">' +
+            '<h3 style="font-size:14px;margin-bottom:8px;">감상평 ('+sc.count+')</h3>' + respHtml +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    var qrBtn = $("#btnShowArtQr");
+    if(qrBtn) qrBtn.addEventListener("click", function(){ openQrModal(a.title, "작품 QR · " + a.authorNickname, pageUrl({view:"artwork", id:a.id}), a.medium); });
+
+    var submitBtn = $("#btnSubmitQuiz");
+    if(submitBtn){
+      submitBtn.addEventListener("click", function(){ submitQuizAnswers(a); });
+    }
+  }
+
+  function scoreAnswer(text){
+    var t = (text||"").trim(); var len = t.length;
+    if(len >= 40) return 3; if(len >= 20) return 2; if(len >= 8) return 1; return 0;
+  }
+
+  function submitQuizAnswers(a){
+    var hint = $("#quizHint");
+    var answers = [0,1,2].map(function(i){ var el = $("#qa_"+i); return el ? el.value.trim() : ""; });
+    var critique = ($("#qaCritique") ? $("#qaCritique").value.trim() : "");
+    if(answers.some(function(x){ return !x; })){ hint.textContent = "세 가지 질문에 모두 답해 주세요."; return; }
+    if(!critique){ hint.textContent = "작가에게 남길 한마디도 적어 주세요."; return; }
+    var scores = answers.map(scoreAnswer);
+    var totalScore = scores.reduce(function(s,v){return s+v;},0) + (critique.length >= 10 ? 1 : 0);
+    var viewerPoints = 5 + totalScore;
+    var authorBonus = 2 + Math.ceil(totalScore/3);
+    hint.textContent = "채점 중…";
+
+    var respRef = db.doc("responses/" + a.id + "__" + myProfile.id);
+    respRef.set({
+      artworkId: a.id, viewerId: myProfile.id, viewerNickname: myProfile.nickname,
+      authorId: a.authorId, answers: answers, critique: critique, score: totalScore, createdAt: nowIso()
+    }).then(function(){
+      return db.doc("students/" + myProfile.id).get();
+    }).then(function(snap){
+      var cur = snap.exists ? (snap.data().points||0) : 0;
+      return db.doc("students/" + myProfile.id).update({ points: cur + viewerPoints });
+    }).then(function(){
+      return db.doc("students/" + a.authorId).get();
+    }).then(function(snap){
+      if(!snap.exists) return;
+      var cur = snap.data().authorPoints||0;
+      return db.doc("students/" + a.authorId).update({ authorPoints: cur + authorBonus });
+    }).then(function(){
+      hint.textContent = "";
+      toast("+" + viewerPoints + "P 획득! 작가에게도 포인트가 전달됐어요.");
+      openArtwork(a.id);
+    }).catch(function(err){
+      console.error(err); hint.textContent = "제출 중 오류가 발생했어요.";
+    });
+  }
+
+  /* ---------------- 성장 다짐 ---------------- */
+  function renderPledgeFilters(){
+    var wrap = $("#pledgeFilter");
+    var classes = classListFromCache();
+    var html = '<button class="seg-btn ' + (pledgeClassFilter==="all"?"active":"") + '" data-c="all">전체</button>';
+    classes.forEach(function(c){
+      html += '<button class="seg-btn ' + (pledgeClassFilter===c.id?"active":"") + '" data-c="' + c.id + '">' + c.label + '</button>';
+    });
+    wrap.innerHTML = html;
+    $all("#pledgeFilter .seg-btn").forEach(function(b){
+      b.addEventListener("click", function(){ pledgeClassFilter = b.dataset.c; renderPledges(); renderPledgeFilters(); });
+    });
+  }
+
+  $("#btnSavePledge").addEventListener("click", function(){
+    var hint = $("#pledgeHint");
+    if(!myProfile){ hint.textContent = "먼저 [반 선택] 탭에서 프로필을 등록해 주세요."; return; }
+    var text = $("#inPledge").value.trim();
+    if(!text){ hint.textContent = "다짐을 한 문장으로 적어 주세요."; return; }
+    if(!db){ hint.textContent = "데이터 연결을 확인하고 있어요."; return; }
+    db.doc("reflections/" + myProfile.id).set({
+      studentId: myProfile.id, nickname: myProfile.nickname,
+      grade: myProfile.grade, classNum: myProfile.classNum,
+      text: text, createdAt: nowIso()
+    }).then(function(){
+      hint.textContent = ""; toast("다짐 카드가 만들어졌어요!"); $("#inPledge").value = "";
+    }).catch(function(err){ console.error(err); hint.textContent = "저장 중 오류가 발생했어요."; });
+  });
+
+  function renderPledges(){
+    var grid = $("#pledgeGrid");
+    var list = pledgesCache.filter(function(p){ return pledgeClassFilter==="all" || classId(p.grade,p.classNum)===pledgeClassFilter; })
+      .sort(function(x,y){ return (y.createdAt||"").localeCompare(x.createdAt||""); });
+    if(!list.length){ grid.innerHTML = '<p class="empty-note">아직 작성된 다짐 카드가 없어요.</p>'; return; }
+    grid.innerHTML = list.map(function(p){
+      var d = p.createdAt ? new Date(p.createdAt) : null;
+      var ds = d ? (d.getMonth()+1)+"."+d.getDate() : "";
+      return '<div class="pledge-card">' +
+        '<div class="pledge-name">'+esc(p.nickname)+' <span style="font-weight:400;color:var(--ink-soft);font-size:11.5px;">'+classLabel(p.grade,p.classNum)+'</span></div>' +
+        '<div class="pledge-text">"'+esc(p.text)+'"</div>' +
+        '<div class="pledge-date">'+ds+'</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  /* ---------------- 교사 대시보드 ---------------- */
+  function barCell(value, max, colorClass){
+    var pct = Math.max(2, Math.round((value/max)*100));
+    return '<div class="bar-cell" title="'+value+'점">' +
+      '<div class="bar-track"><div class="bar-fill '+colorClass+'" style="width:'+pct+'%"></div></div>' +
+      '<span class="bar-num">'+value+'</span>' +
+    '</div>';
+  }
+  function renderDashboard(){
+    var totalStudents = studentsCache.length;
+    var totalArtworks = artworksCache.length;
+    var totalFeedback = responsesCache.length;
+    var totalPoints = studentsCache.reduce(function(s,d){ return s + (d.points||0) + (d.authorPoints||0); }, 0);
+    var topTierCount = artworksCache.filter(function(a){ var t = artworkScore(a.id).total; return t >= 18; }).length;
+    $("#dashStats").innerHTML = [
+      {n: totalStudents, l:"등록 학생 수"},
+      {n: totalArtworks, l:"등록 작품 수"},
+      {n: totalFeedback, l:"누적 감상평"},
+      {n: totalPoints, l:"누적 포인트"},
+      {n: topTierCount, l:"명품·국보 작품"}
+    ].map(function(s){ return '<div class="stat-tile"><div class="n">'+s.n+'</div><div class="l">'+s.l+'</div></div>'; }).join("");
+
+    // 일괄 인쇄용 반 선택 옵션 갱신 (선택값 유지)
+    var bpSel = $("#bulkPrintClass");
+    if(bpSel){
+      var keep = bpSel.value || "all";
+      var opts = '<option value="all">전체 학생</option>' + classListFromCache().map(function(c){
+        return '<option value="'+c.id+'">'+c.label+'</option>';
+      }).join("");
+      if(bpSel.innerHTML !== opts){ bpSel.innerHTML = opts; bpSel.value = keep; if(bpSel.value !== keep) bpSel.value = "all"; }
+    }
+
+    // 반별 랭킹
+    var byClass = {};
+    studentsCache.forEach(function(s){
+      var k = classId(s.grade,s.classNum);
+      byClass[k] = byClass[k] || { label: classLabel(s.grade,s.classNum), total:0 };
+      byClass[k].total += (s.points||0) + (s.authorPoints||0);
+    });
+    var classRows = Object.keys(byClass).map(function(k){ return byClass[k]; }).sort(function(a,b){ return b.total-a.total; });
+    var classMax = Math.max(1, classRows[0] ? classRows[0].total : 1);
+    $("#classRankTable tbody").innerHTML = classRows.length ? classRows.map(function(c,i){
+      return '<tr><td class="rk">'+(i+1)+'</td><td>'+esc(c.label)+'</td><td>'+barCell(c.total, classMax, "c-brass")+'</td></tr>';
+    }).join("") : '<tr><td colspan="3" class="empty-note">데이터 없음</td></tr>';
+
+    // 학생 랭킹
+    var studentRows = studentsCache.map(function(s){ return { nickname:s.nickname, label: classLabel(s.grade,s.classNum), total:(s.points||0)+(s.authorPoints||0) }; })
+      .sort(function(a,b){ return b.total-a.total; }).slice(0,20);
+    var studentMax = Math.max(1, studentRows[0] ? studentRows[0].total : 1);
+    $("#studentRankTable tbody").innerHTML = studentRows.length ? studentRows.map(function(s,i){
+      return '<tr><td class="rk">'+(i+1)+'</td><td>'+esc(s.nickname)+'</td><td>'+esc(s.label)+'</td><td>'+barCell(s.total, studentMax, "c-celadon")+'</td></tr>';
+    }).join("") : '<tr><td colspan="4" class="empty-note">데이터 없음</td></tr>';
+
+    // 작품 랭킹
+    var artRows = artworksCache.map(function(a){
+      var sc = artworkScore(a.id); var b = badgeFor(sc.total);
+      return { badge:b, title:a.title, author:a.authorNickname, count:sc.count, total:sc.total };
+    }).sort(function(x,y){ return y.total-x.total; });
+    var artMax = Math.max(1, artRows[0] ? artRows[0].total : 1);
+    $("#artRankTable tbody").innerHTML = artRows.length ? artRows.map(function(a){
+      var barColor = a.badge.cls.replace("badge-","c-");
+      return '<tr><td><span class="badge '+a.badge.cls+'">'+a.badge.label+'</span></td><td>'+esc(a.title)+'</td><td>'+esc(a.author)+'</td><td class="num">'+a.count+'</td><td>'+barCell(a.total, artMax, barColor)+'</td></tr>';
+    }).join("") : '<tr><td colspan="5" class="empty-note">데이터 없음</td></tr>';
+  }
+
+  /* ---------------- 데이터 구독 ---------------- */
+  function docListFromSnap(snap){
+    return snap.docs.map(function(d){ var body = d.data() || {}; body.id = d.id; return body; });
+  }
+
+  function initDbSubscriptions(){
+    if(!db) return;
+    db.collection("artworks").orderBy("createdAt","desc").limit(300).onSnapshot(function(snap){
+      artworksCache = docListFromSnap(snap);
+      renderGallery(); renderGalleryFilters();
+      if(currentArtworkId && document.querySelector('[data-view="artwork"]').classList.contains("active")) openArtwork(currentArtworkId);
+      if(document.querySelector('[data-view="dash"]').classList.contains("active")) renderDashboard();
+    }, function(err){ console.error("artworks", err); });
+
+    db.collection("students").limit(500).onSnapshot(function(snap){
+      studentsCache = docListFromSnap(snap);
+      renderIdChip();
+      if(document.querySelector('[data-view="dash"]').classList.contains("active")) renderDashboard();
+    }, function(err){ console.error("students", err); });
+
+    db.collection("responses").limit(2000).onSnapshot(function(snap){
+      responsesCache = docListFromSnap(snap);
+      renderGallery();
+      if(currentArtworkId && document.querySelector('[data-view="artwork"]').classList.contains("active")) openArtwork(currentArtworkId);
+      if(document.querySelector('[data-view="dash"]').classList.contains("active")) renderDashboard();
+    }, function(err){ console.error("responses", err); });
+
+    db.collection("reflections").limit(500).onSnapshot(function(snap){
+      pledgesCache = docListFromSnap(snap);
+      if(document.querySelector('[data-view="pledge"]').classList.contains("active")) renderPledges();
+    }, function(err){ console.error("reflections", err); });
+  }
+
+  /* ---------------- 라우팅(QR 딥링크) ---------------- */
+  function handleDeepLink(){
+    var params = new URLSearchParams(location.search);
+    var view = params.get("view"), id = params.get("id");
+    if(view === "artwork" && id){
+      currentArtworkId = id;
+      switchTab("artwork");
+      return true;
+    } else if(view === "profile" && id){
+      // 프로필 요약을 작품 상세와 동일한 레이아웃으로 표시
+      switchTab("gallery");
+      return true;
+    }
+    return false;
+  }
+
+  /* ---------------- 앱 입장 QR 팝업 ---------------- */
+  function siteBaseUrl(){
+    return location.origin + location.pathname;
+  }
+  function openSiteQrModal(){
+    var m = $("#siteQrModal"); m.hidden = false;
+    renderQrInto("#siteQrCanvas", siteBaseUrl(), 170);
+  }
+  function closeSiteQrModal(){ $("#siteQrModal").hidden = true; }
+  $("#btnShowSiteQr").addEventListener("click", openSiteQrModal);
+  $("#siteQrClose").addEventListener("click", closeSiteQrModal);
+  $("#siteQrEnterBtn").addEventListener("click", closeSiteQrModal);
+  $("#siteQrPrintBtn").addEventListener("click", function(){
+    printQr("진품명품 갤러리 입장 QR", "스마트폰으로 스캔해서 바로 참여하세요", siteBaseUrl());
+  });
+
+  /* ---------------- Firebase 연결 ----------------
+     아래 firebaseConfig 값을 본인의 Firebase 프로젝트 값으로 바꿔주세요.
+     (Firebase 콘솔 > 프로젝트 설정 > 일반 > "내 앱" > 웹 앱 > SDK 설정 및 구성 에서 복사)
+     학생들은 로그인 없이도 "익명 인증"으로 자동 접속됩니다. */
+  var firebaseConfig = {
+    apiKey: "AIzaSyDTqN9Fr_UktyryT0waWczU0LY2z2LZYik",
+    authDomain: "jin-gallery.firebaseapp.com",
+    projectId: "jin-gallery",
+    storageBucket: "jin-gallery.firebasestorage.app",
+    messagingSenderId: "252097493996",
+    appId: "1:252097493996:web:24a765f80a52d022315ec9"
+  };
+
+  function initFirebase(){
+    try{
+      firebase.initializeApp(firebaseConfig);
+      firebase.auth().signInAnonymously().then(function(){
+        db = firebase.firestore();
+        initDbSubscriptions();
+      }).catch(function(err){
+        console.error("Firebase 익명 로그인 실패:", err);
+        toast("Firebase 연결에 실패했어요. 설정(firebaseConfig, 익명 인증 사용 설정)을 확인해 주세요.");
+      });
+    }catch(err){
+      console.error("Firebase 초기화 실패:", err);
+      toast("Firebase 설정값을 채워 넣어야 앱이 정상 작동해요. index.html 안의 firebaseConfig를 확인해 주세요.");
+    }
+  }
+
+  /* ---------------- 초기화 ---------------- */
+  function init(){
+    var saved = loadLocalProfile();
+    if(saved && saved.id){ myProfile = saved; renderIdChip(); renderProfileQr(); }
+    renderGalleryFilters(); renderPledgeFilters();
+    var isDeepLink = handleDeepLink();
+    if(!document.querySelector(".view.active")) switchTab(myProfile ? "gallery" : "setup");
+    if(!isDeepLink) openSiteQrModal();
+
+    initFirebase();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
+
