@@ -411,6 +411,10 @@
       <div class="grid cols-2">
         <div class="card">
           <div class="field">
+            <label>활동(프로젝트)</label>
+            <select id="inActivity"><option value="">불러오는 중…</option></select>
+          </div>
+          <div class="field">
             <label>학년</label>
             <select id="inGrade"><option value="1">1학년</option><option value="2">2학년</option><option value="3" selected>3학년</option></select>
           </div>
@@ -451,7 +455,7 @@
       <div class="page-head">
         <span class="eyebrow">Hall of Fame</span>
         <h2>명예의 전당</h2>
-        <p class="desc">모든 반을 통틀어 가장 높은 점수를 받은 TOP 5 작품이에요. 우리 반이 아니어도 누구나 볼 수 있어요.</p>
+        <p class="desc">내가 등록한 활동을 기준으로, 모든 반을 통틀어 가장 높은 점수를 받은 TOP 5 작품이에요. 우리 반이 아니어도 누구나 볼 수 있어요.</p>
       </div>
       <div class="gallery-grid" id="hofGrid"><p class="empty-note">불러오는 중…</p></div>
     </section>
@@ -515,7 +519,18 @@
         <h2>결과 대시보드</h2>
         <p class="desc">반별 랭킹, 작품 피드백 수, 학생 포인트가 실시간으로 집계됩니다. 아래에서 반을 선택하면 그 반 학생·작품만 볼 수 있어요.</p>
       </div>
-      <div class="segmented" id="dashClassFilter" style="margin-bottom:14px;"></div>
+      <div class="card" style="margin-bottom:16px;">
+        <h3 style="font-size:15px;margin-bottom:2px;">🎨 활동(프로젝트) 관리</h3>
+        <p class="empty-note" style="text-align:left;padding:0 0 10px;">새 미술 활동을 시작할 때 여기서 이름을 추가해 주세요. 학생들은 [반 선택] 탭에서 이 목록 중 하나를 골라 등록해요. 최근에 추가한 활동이 목록 맨 위·기본 선택값이 됩니다.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <input type="text" id="inActivityName" maxlength="20" placeholder="예: 민화 그리기" style="flex:1;min-width:160px;">
+          <button class="btn btn-primary" id="btnAddActivity">➕ 활동 추가</button>
+        </div>
+        <p class="empty-note" id="activityHint" style="padding:8px 0 0;text-align:left;"></p>
+        <div id="activityList" style="margin-top:12px;"></div>
+      </div>
+      <div class="segmented" id="dashClassFilter" style="margin-bottom:8px;"></div>
+      <div class="segmented" id="dashActivityFilter" style="margin-bottom:14px;"></div>
       <div class="stat-row" id="dashStats"></div>
       <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <div style="flex:1;min-width:180px;">
@@ -538,7 +553,7 @@
       <div class="card" style="margin-top:16px;">
         <h3 style="font-size:15px;margin-bottom:10px;">🖼️ 작품별 피드백 현황</h3>
         <p class="empty-note" style="text-align:left;padding:0 0 8px;">행을 클릭하면 작품 사진과 학생들이 남긴 감상 퀴즈 답변·한마디를 모두 볼 수 있어요.</p>
-        <div class="tablewrap"><table class="rank" id="artRankTable"><thead><tr><th>등급</th><th>작품</th><th>반</th><th>작가</th><th>피드백 수</th><th>총점</th></tr></thead><tbody></tbody></table></div>
+        <div class="tablewrap"><table class="rank" id="artRankTable"><thead><tr><th>등급</th><th>작품</th><th>활동</th><th>반</th><th>작가</th><th>피드백 수</th><th>총점</th></tr></thead><tbody></tbody></table></div>
       </div>
       <div class="card" style="margin-top:16px;">
         <h3 style="font-size:15px;margin-bottom:10px;">🔐 교사 비밀번호 변경</h3>
@@ -625,11 +640,12 @@
 
   /* ---------------- 상태 ---------------- */
   var db = null;
-  var myProfile = null; // {id, grade, classNum, number, nickname}
+  var myProfile = null; // {id, grade, classNum, number, nickname, activityId, activityName}
   var artworksCache = [];   // artworks docs {id,...}
   var studentsCache = [];   // students docs
   var responsesCache = [];  // responses docs
   var pledgesCache = [];    // reflections docs
+  var activitiesCache = []; // 활동(프로젝트) docs {id, name, createdAt}, 최신순
   var galleryClassFilter = "all";
   var pledgeClassFilter = "all";
   var currentArtworkId = null;
@@ -662,6 +678,7 @@
     $all(".view").forEach(function(v){ v.classList.toggle("active", v.dataset.view === name); });
     $all(".tab-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.tab === name); });
     if(!opts.keepScroll) window.scrollTo({top:0, behavior:"instant"});
+    if(name === "setup") renderActivityOptions();
     if(name === "dash") renderDashboard();
     if(name === "gallery") renderGalleryFilters();
     if(name === "hof") renderHallOfFame();
@@ -728,11 +745,66 @@
   }
   populateClassSelect();
 
+  /* ---------------- 활동(프로젝트) ---------------- */
+  function activityNameById(id){
+    for(var i=0;i<activitiesCache.length;i++){ if(activitiesCache[i].id === id) return activitiesCache[i].name; }
+    return "";
+  }
+  function renderActivityOptions(){
+    var sel = $("#inActivity");
+    if(!sel) return;
+    var keep = sel.value;
+    if(!activitiesCache.length){
+      sel.innerHTML = '<option value="">선생님이 활동을 아직 추가하지 않았어요</option>';
+      return;
+    }
+    sel.innerHTML = activitiesCache.map(function(act){ return '<option value="'+act.id+'">'+esc(act.name)+'</option>'; }).join("");
+    // 우선순위: 내가 이미 등록한 활동 > 이전에 선택해둔 값 > 가장 최근에 추가된 활동(맨 위)
+    var want = (myProfile && myProfile.activityId) || keep;
+    var stillExists = want && activitiesCache.some(function(act){ return act.id === want; });
+    sel.value = stillExists ? want : activitiesCache[0].id;
+  }
+  function renderActivityManage(){
+    var wrap = $("#activityList");
+    if(!wrap) return;
+    if(!activitiesCache.length){ wrap.innerHTML = '<p class="empty-note">아직 등록된 활동이 없어요. 위에서 첫 활동을 추가해 보세요.</p>'; return; }
+    wrap.innerHTML = activitiesCache.map(function(act,i){
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-s);margin-bottom:6px;background:var(--card-bg);">' +
+        '<span>'+(i===0?'<span class="badge badge-genuine" style="margin-right:6px;">최신</span>':'')+esc(act.name)+'</span>' +
+        '<button class="btn btn-ghost" data-del-activity="'+act.id+'" style="padding:4px 10px;font-size:12px;">삭제</button>' +
+      '</div>';
+    }).join("");
+    $all("#activityList [data-del-activity]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        if(!db) return;
+        db.collection("activities").doc(btn.dataset.delActivity).delete().then(function(){
+          toast("활동을 삭제했어요. (이미 등록된 작품의 활동명은 그대로 남아요)");
+        }).catch(function(err){ console.error(err); toast("삭제 중 오류가 발생했어요."); });
+      });
+    });
+  }
+  var addActivityBtn = $("#btnAddActivity");
+  if(addActivityBtn){
+    addActivityBtn.addEventListener("click", function(){
+      var hint = $("#activityHint");
+      var name = $("#inActivityName").value.trim();
+      if(!name){ hint.textContent = "활동 이름을 입력해 주세요."; return; }
+      if(!db){ hint.textContent = "데이터 연결을 확인하고 있어요."; return; }
+      hint.textContent = "추가 중…";
+      db.collection("activities").add({ name: name, createdAt: nowIso() }).then(function(){
+        $("#inActivityName").value = "";
+        hint.textContent = "추가되었어요! 학생들의 활동 선택 목록 맨 위에 나타나요.";
+      }).catch(function(err){
+        console.error(err); hint.textContent = "추가 중 오류가 발생했어요.";
+      });
+    });
+  }
+
   function renderIdChip(){
     var chip = $("#idChip");
     if(myProfile){
       var pts = getStudentDoc(myProfile.id);
-      chip.innerHTML = "<b>" + esc(myProfile.nickname) + "</b>" + classLabel(myProfile.grade, myProfile.classNum) + " · " + myProfile.number + "번 · " + (pts ? (pts.points||0)+(pts.authorPoints||0) : 0) + "P";
+      chip.innerHTML = "<b>" + esc(myProfile.nickname) + "</b>" + classLabel(myProfile.grade, myProfile.classNum) + " · " + myProfile.number + "번" + (myProfile.activityName ? " · " + esc(myProfile.activityName) : "") + " · " + (pts ? (pts.points||0)+(pts.authorPoints||0) : 0) + "P";
     } else {
       chip.innerHTML = "<b>미등록 감상자</b>반을 선택하고 닉네임을 등록해 주세요.";
     }
@@ -748,7 +820,7 @@
     if(!myProfile){ box.innerHTML = '<p class="empty-note">등록 후 이곳에 명찰 QR 코드가 표시됩니다.</p>'; return; }
     box.innerHTML = '<div class="badge badge-genuine">나의 명찰</div>' +
       '<div style="font-family:var(--font-display);font-size:20px;margin-top:4px;">' + esc(myProfile.nickname) + '</div>' +
-      '<div class="plaque">' + classLabel(myProfile.grade, myProfile.classNum) + ' · ' + myProfile.number + '번</div>' +
+      '<div class="plaque">' + classLabel(myProfile.grade, myProfile.classNum) + ' · ' + myProfile.number + '번' + (myProfile.activityName ? ' · ' + esc(myProfile.activityName) : '') + '</div>' +
       '<div class="qr-holder" id="profileQrHolder"></div>' +
       '<button class="btn btn-ghost" id="btnPrintProfile">🖨️ 명찰 인쇄</button>';
     renderQrInto("#profileQrHolder", pageUrl({view:"profile", id: myProfile.id}), 132);
@@ -762,11 +834,12 @@
     var ref = db.doc("students/" + profile.id);
     ref.get().then(function(snap){
       if(snap.exists){
-        return ref.update({ nickname: profile.nickname });
+        return ref.update({ nickname: profile.nickname, activityId: profile.activityId, activityName: profile.activityName });
       } else {
         return ref.set({
           grade: profile.grade, classNum: profile.classNum, number: profile.number,
-          nickname: profile.nickname, points: 0, authorPoints: 0, createdAt: nowIso()
+          nickname: profile.nickname, activityId: profile.activityId, activityName: profile.activityName,
+          points: 0, authorPoints: 0, createdAt: nowIso()
         });
       }
     }).then(function(){
@@ -783,11 +856,13 @@
     var classNum = parseInt($("#inClass").value,10);
     var number = parseInt($("#inNumber").value,10);
     var nickname = $("#inNickname").value.trim();
+    var activityId = $("#inActivity").value;
     var hint = $("#setupHint");
+    if(!activityId){ hint.textContent = "활동을 선택해 주세요. (목록에 없으면 선생님께 추가를 요청하세요)"; return; }
     if(!number || number<1){ hint.textContent = "번호를 입력해 주세요."; return; }
     if(!nickname){ hint.textContent = "닉네임을 입력해 주세요."; return; }
     hint.textContent = "";
-    upsertStudent({ id: studentId(grade,classNum,number), grade:grade, classNum:classNum, number:number, nickname:nickname });
+    upsertStudent({ id: studentId(grade,classNum,number), grade:grade, classNum:classNum, number:number, nickname:nickname, activityId: activityId, activityName: activityNameById(activityId) });
   });
 
   /* ---------------- QR 공통 ---------------- */
@@ -895,6 +970,7 @@
     db.collection("artworks").add({
       authorId: myProfile.id, authorNickname: myProfile.nickname,
       grade: myProfile.grade, classNum: myProfile.classNum,
+      activityId: myProfile.activityId || "", activityName: myProfile.activityName || "",
       title: title, medium: medium, desc: desc, quiz: [q1,q2,q3],
       imageData: pendingImageData, createdAt: nowIso()
     }).then(function(ref){
@@ -930,10 +1006,11 @@
   }
 
   function renderGalleryFilters(){
-    // 학생은 자기 반 작품만 볼 수 있어요 (다른 반 작품은 [명예의 전당]에서만 확인 가능).
+    // 학생은 자기 반 + 자기 활동 작품만 볼 수 있어요 (다른 반·다른 활동 작품은 [명예의 전당]에서만 확인 가능).
     var wrap = $("#classFilter");
     if(myProfile){
-      wrap.innerHTML = '<span class="seg-btn active" style="cursor:default;">' + esc(classLabel(myProfile.grade, myProfile.classNum)) + ' 작품만 표시 중</span>';
+      var label = esc(classLabel(myProfile.grade, myProfile.classNum)) + (myProfile.activityName ? ' · ' + esc(myProfile.activityName) : '') + ' 작품만 표시 중';
+      wrap.innerHTML = '<span class="seg-btn active" style="cursor:default;">' + label + '</span>';
     } else {
       wrap.innerHTML = '';
     }
@@ -946,7 +1023,9 @@
       return;
     }
     var myClassId = classId(myProfile.grade, myProfile.classNum);
-    var list = artworksCache.filter(function(a){ return classId(a.grade,a.classNum)===myClassId; });
+    var list = artworksCache.filter(function(a){
+      return classId(a.grade,a.classNum)===myClassId && (!myProfile.activityId || a.activityId===myProfile.activityId);
+    });
     if(!list.length){ grid.innerHTML = '<p class="empty-note">아직 등록된 작품이 없어요. [작품 등록] 탭에서 첫 작품을 올려보세요!</p>'; return; }
     grid.innerHTML = list.map(function(a){
       var sc = artworkScore(a.id); var b = badgeFor(sc.total);
@@ -974,9 +1053,12 @@
   }
 
   function renderHallOfFame(){
-    // 반 구분 없이 전체 작품 중 점수 TOP 5. 누구나 볼 수 있는 명예의 전당.
+    // 반 구분 없이, 내가 등록한 활동과 같은 활동의 작품 중 점수 TOP 5. 누구나 볼 수 있는 명예의 전당.
     var grid = $("#hofGrid");
-    var ranked = artworksCache.map(function(a){ return { a:a, sc: artworkScore(a.id) }; })
+    var pool = (myProfile && myProfile.activityId)
+      ? artworksCache.filter(function(a){ return a.activityId === myProfile.activityId; })
+      : artworksCache;
+    var ranked = pool.map(function(a){ return { a:a, sc: artworkScore(a.id) }; })
       .filter(function(x){ return x.sc.count > 0; })
       .sort(function(x,y){ return y.sc.total - x.sc.total; })
       .slice(0,5);
@@ -1174,10 +1256,11 @@
     '</div>';
   }
   var dashClassFilter = "all";
+  var dashActivityFilter = "all";
   function renderDashFilters(){
     var wrap = $("#dashClassFilter");
     var classes = classListFromCache();
-    var html = '<button class="seg-btn ' + (dashClassFilter==="all"?"active":"") + '" data-c="all">전체</button>';
+    var html = '<button class="seg-btn ' + (dashClassFilter==="all"?"active":"") + '" data-c="all">전체 반</button>';
     classes.forEach(function(c){
       html += '<button class="seg-btn ' + (dashClassFilter===c.id?"active":"") + '" data-c="' + c.id + '">' + c.label + '</button>';
     });
@@ -1185,15 +1268,30 @@
     $all("#dashClassFilter .seg-btn").forEach(function(b){
       b.addEventListener("click", function(){ dashClassFilter = b.dataset.c; renderDashboard(); });
     });
+
+    var awrap = $("#dashActivityFilter");
+    var html2 = '<button class="seg-btn ' + (dashActivityFilter==="all"?"active":"") + '" data-a="all">전체 활동</button>';
+    activitiesCache.forEach(function(act){
+      html2 += '<button class="seg-btn ' + (dashActivityFilter===act.id?"active":"") + '" data-a="' + act.id + '">' + esc(act.name) + '</button>';
+    });
+    awrap.innerHTML = html2;
+    $all("#dashActivityFilter .seg-btn").forEach(function(b){
+      b.addEventListener("click", function(){ dashActivityFilter = b.dataset.a; renderDashboard(); });
+    });
   }
 
   function renderDashboard(){
     renderDashFilters();
+    renderActivityManage();
     var studentsForDash = dashClassFilter==="all" ? studentsCache : studentsCache.filter(function(s){ return classId(s.grade,s.classNum)===dashClassFilter; });
     var artworksForDash = dashClassFilter==="all" ? artworksCache : artworksCache.filter(function(a){ return classId(a.grade,a.classNum)===dashClassFilter; });
+    if(dashActivityFilter !== "all"){
+      studentsForDash = studentsForDash.filter(function(s){ return s.activityId===dashActivityFilter; });
+      artworksForDash = artworksForDash.filter(function(a){ return a.activityId===dashActivityFilter; });
+    }
     var artIdSetForDash = {};
     artworksForDash.forEach(function(a){ artIdSetForDash[a.id] = true; });
-    var responsesForDash = dashClassFilter==="all" ? responsesCache : responsesCache.filter(function(r){ return artIdSetForDash[r.artworkId]; });
+    var responsesForDash = (dashClassFilter==="all" && dashActivityFilter==="all") ? responsesCache : responsesCache.filter(function(r){ return artIdSetForDash[r.artworkId]; });
 
     var totalStudents = studentsForDash.length;
     var totalArtworks = artworksForDash.length;
@@ -1242,13 +1340,13 @@
     // 작품 랭킹 (반 필터 적용, 클릭하면 작품·글 전체를 볼 수 있어요)
     var artRows = artworksForDash.map(function(a){
       var sc = artworkScore(a.id); var b = badgeFor(sc.total);
-      return { id:a.id, badge:b, title:a.title, cls: classLabel(a.grade,a.classNum), author:a.authorNickname, count:sc.count, total:sc.total };
+      return { id:a.id, badge:b, title:a.title, activity: a.activityName||"-", cls: classLabel(a.grade,a.classNum), author:a.authorNickname, count:sc.count, total:sc.total };
     }).sort(function(x,y){ return y.total-x.total; });
     var artMax = Math.max(1, artRows[0] ? artRows[0].total : 1);
     $("#artRankTable tbody").innerHTML = artRows.length ? artRows.map(function(a){
       var barColor = a.badge.cls.replace("badge-","c-");
-      return '<tr class="row-click" data-art-id="'+a.id+'" style="cursor:pointer;"><td><span class="badge '+a.badge.cls+'">'+a.badge.label+'</span></td><td>'+esc(a.title)+'</td><td>'+esc(a.cls)+'</td><td>'+esc(a.author)+'</td><td class="num">'+a.count+'</td><td>'+barCell(a.total, artMax, barColor)+'</td></tr>';
-    }).join("") : '<tr><td colspan="6" class="empty-note">데이터 없음</td></tr>';
+      return '<tr class="row-click" data-art-id="'+a.id+'" style="cursor:pointer;"><td><span class="badge '+a.badge.cls+'">'+a.badge.label+'</span></td><td>'+esc(a.title)+'</td><td>'+esc(a.activity)+'</td><td>'+esc(a.cls)+'</td><td>'+esc(a.author)+'</td><td class="num">'+a.count+'</td><td>'+barCell(a.total, artMax, barColor)+'</td></tr>';
+    }).join("") : '<tr><td colspan="7" class="empty-note">데이터 없음</td></tr>';
     $all("#artRankTable tbody .row-click").forEach(function(tr){
       tr.addEventListener("click", function(){ artworkReturnTab = "dash"; openArtwork(tr.dataset.artId); });
     });
@@ -1275,6 +1373,13 @@
         if(d.teacherPin && /^\d{4}$/.test(d.teacherPin)) TEACHER_PIN = d.teacherPin;
       }
     }, function(err){ console.error("settings", err); });
+
+    db.collection("activities").orderBy("createdAt","desc").limit(50).onSnapshot(function(snap){
+      activitiesCache = docListFromSnap(snap);
+      renderActivityOptions();
+      if(document.querySelector('[data-view="dash"]').classList.contains("active")){ renderActivityManage(); renderDashboard(); }
+      if(document.querySelector('[data-view="gallery"]').classList.contains("active")){ renderGallery(); renderGalleryFilters(); }
+    }, function(err){ console.error("activities", err); });
 
     db.collection("students").limit(500).onSnapshot(function(snap){
       studentsCache = docListFromSnap(snap);
