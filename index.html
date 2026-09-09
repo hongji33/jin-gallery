@@ -388,6 +388,7 @@
     <nav class="tabs" id="tabNav">
       <button class="tab-btn" data-tab="setup"><span class="ic">🎫</span><span class="label">반 선택</span></button>
       <button class="tab-btn" data-tab="gallery"><span class="ic">🖼️</span><span class="label">작품 전시·퀴즈</span></button>
+      <button class="tab-btn" data-tab="hof"><span class="ic">🏆</span><span class="label">명예의 전당</span></button>
       <button class="tab-btn" data-tab="register"><span class="ic">➕</span><span class="label">작품 등록</span></button>
       <button class="tab-btn" data-tab="pledge"><span class="ic">🖋️</span><span class="label">성장 다짐</span></button>
       <button class="tab-btn" data-tab="dash"><span class="ic">📊</span><span class="label">교사 대시보드</span></button>
@@ -443,6 +444,16 @@
       </div>
       <div class="segmented" id="classFilter"></div>
       <div class="gallery-grid" id="galleryGrid"><p class="empty-note">불러오는 중…</p></div>
+    </section>
+
+    <!-- 명예의 전당 -->
+    <section class="view" data-view="hof">
+      <div class="page-head">
+        <span class="eyebrow">Hall of Fame</span>
+        <h2>명예의 전당</h2>
+        <p class="desc">모든 반을 통틀어 가장 높은 점수를 받은 TOP 5 작품이에요. 우리 반이 아니어도 누구나 볼 수 있어요.</p>
+      </div>
+      <div class="gallery-grid" id="hofGrid"><p class="empty-note">불러오는 중…</p></div>
     </section>
 
     <!-- 작품 상세 -->
@@ -527,6 +538,16 @@
         <h3 style="font-size:15px;margin-bottom:10px;">🖼️ 작품별 피드백 현황</h3>
         <div class="tablewrap"><table class="rank" id="artRankTable"><thead><tr><th>등급</th><th>작품</th><th>작가</th><th>피드백 수</th><th>총점</th></tr></thead><tbody></tbody></table></div>
       </div>
+      <div class="card" style="margin-top:16px;">
+        <h3 style="font-size:15px;margin-bottom:10px;">🔐 교사 비밀번호 변경</h3>
+        <p class="empty-note" style="text-align:left;padding:0 0 10px;">대시보드에 들어올 때 입력하는 4자리 비밀번호예요. 바꾸면 이 웹앱을 쓰는 모든 기기에 즉시 적용돼요.</p>
+        <div class="grid cols-2">
+          <div class="field"><label>새 비밀번호 (숫자 4자리)</label><input type="password" id="newPinInput" inputmode="numeric" maxlength="4" placeholder="••••"></div>
+          <div class="field"><label>새 비밀번호 확인</label><input type="password" id="newPinInput2" inputmode="numeric" maxlength="4" placeholder="••••"></div>
+        </div>
+        <button class="btn btn-primary" id="btnChangePin">비밀번호 변경</button>
+        <p class="empty-note" id="pinChangeHint" style="padding:10px 0 0;text-align:left;"></p>
+      </div>
     </section>
   </main>
 </div>
@@ -610,6 +631,7 @@
   var galleryClassFilter = "all";
   var pledgeClassFilter = "all";
   var currentArtworkId = null;
+  var artworkReturnTab = "gallery";
 
   /* ---------------- 유틸 ---------------- */
   function $(sel){ return document.querySelector(sel); }
@@ -640,9 +662,10 @@
     if(!opts.keepScroll) window.scrollTo({top:0, behavior:"instant"});
     if(name === "dash") renderDashboard();
     if(name === "gallery") renderGalleryFilters();
+    if(name === "hof") renderHallOfFame();
     if(name === "pledge") renderPledgeFilters();
   }
-  var TEACHER_PIN = "1234";
+  var TEACHER_PIN = "1234"; // Firestore settings/app 문서에 값이 있으면 그 값으로 덮어씌워짐
   function isTeacherUnlocked(){ try{ return sessionStorage.getItem("jpmp_teacher_ok") === "1"; }catch(e){ return false; } }
   function setTeacherUnlocked(){ try{ sessionStorage.setItem("jpmp_teacher_ok", "1"); }catch(e){} }
 
@@ -655,7 +678,7 @@
       switchTab(btn.dataset.tab);
     });
   });
-  $("#btnBackGallery").addEventListener("click", function(){ switchTab("gallery"); });
+  $("#btnBackGallery").addEventListener("click", function(){ switchTab(artworkReturnTab); });
 
   /* ---------------- 교사 PIN 잠금 ---------------- */
   function openPinModal(){
@@ -677,6 +700,24 @@
   $("#pinClose").addEventListener("click", closePinModal);
   $("#pinSubmit").addEventListener("click", tryUnlock);
   $("#pinInput").addEventListener("keydown", function(e){ if(e.key === "Enter") tryUnlock(); });
+
+  $("#btnChangePin").addEventListener("click", function(){
+    var p1 = $("#newPinInput").value.trim();
+    var p2 = $("#newPinInput2").value.trim();
+    var hint = $("#pinChangeHint");
+    if(!/^\d{4}$/.test(p1)){ hint.textContent = "숫자 4자리로 입력해 주세요."; return; }
+    if(p1 !== p2){ hint.textContent = "두 비밀번호가 서로 달라요."; return; }
+    if(!db){ hint.textContent = "저장에 실패했어요. 인터넷 연결을 확인하고 다시 시도해 주세요."; return; }
+    hint.textContent = "저장 중…";
+    db.collection("settings").doc("app").set({ teacherPin: p1 }, { merge:true }).then(function(){
+      TEACHER_PIN = p1;
+      hint.textContent = "비밀번호가 변경되었어요! 다음부터는 새 비밀번호로 들어올 수 있어요.";
+      $("#newPinInput").value = ""; $("#newPinInput2").value = "";
+    }).catch(function(err){
+      console.error("PIN 저장 실패", err);
+      hint.textContent = "저장 중 오류가 발생했어요. 다시 시도해 주세요.";
+    });
+  });
 
   /* ---------------- 프로필 ---------------- */
   function populateClassSelect(){
@@ -887,21 +928,23 @@
   }
 
   function renderGalleryFilters(){
+    // 학생은 자기 반 작품만 볼 수 있어요 (다른 반 작품은 [명예의 전당]에서만 확인 가능).
     var wrap = $("#classFilter");
-    var classes = classListFromCache();
-    var html = '<button class="seg-btn ' + (galleryClassFilter==="all"?"active":"") + '" data-c="all">전체</button>';
-    classes.forEach(function(c){
-      html += '<button class="seg-btn ' + (galleryClassFilter===c.id?"active":"") + '" data-c="' + c.id + '">' + c.label + '</button>';
-    });
-    wrap.innerHTML = html;
-    $all("#classFilter .seg-btn").forEach(function(b){
-      b.addEventListener("click", function(){ galleryClassFilter = b.dataset.c; renderGallery(); renderGalleryFilters(); });
-    });
+    if(myProfile){
+      wrap.innerHTML = '<span class="seg-btn active" style="cursor:default;">' + esc(classLabel(myProfile.grade, myProfile.classNum)) + ' 작품만 표시 중</span>';
+    } else {
+      wrap.innerHTML = '';
+    }
   }
 
   function renderGallery(){
     var grid = $("#galleryGrid");
-    var list = artworksCache.filter(function(a){ return galleryClassFilter==="all" || classId(a.grade,a.classNum)===galleryClassFilter; });
+    if(!myProfile){
+      grid.innerHTML = '<p class="empty-note">[반 선택] 탭에서 먼저 프로필을 등록하면 우리 반 작품을 볼 수 있어요.</p>';
+      return;
+    }
+    var myClassId = classId(myProfile.grade, myProfile.classNum);
+    var list = artworksCache.filter(function(a){ return classId(a.grade,a.classNum)===myClassId; });
     if(!list.length){ grid.innerHTML = '<p class="empty-note">아직 등록된 작품이 없어요. [작품 등록] 탭에서 첫 작품을 올려보세요!</p>'; return; }
     grid.innerHTML = list.map(function(a){
       var sc = artworkScore(a.id); var b = badgeFor(sc.total);
@@ -928,10 +971,39 @@
     });
   }
 
+  function renderHallOfFame(){
+    // 반 구분 없이 전체 작품 중 점수 TOP 5. 누구나 볼 수 있는 명예의 전당.
+    var grid = $("#hofGrid");
+    var ranked = artworksCache.map(function(a){ return { a:a, sc: artworkScore(a.id) }; })
+      .filter(function(x){ return x.sc.count > 0; })
+      .sort(function(x,y){ return y.sc.total - x.sc.total; })
+      .slice(0,5);
+    if(!ranked.length){ grid.innerHTML = '<p class="empty-note">아직 명예의 전당에 오른 작품이 없어요. 감상평이 쌓이면 순위가 나타나요.</p>'; return; }
+    var medals = ["🥇","🥈","🥉","🏅","🏅"];
+    grid.innerHTML = ranked.map(function(x,i){
+      var a=x.a, sc=x.sc, b=badgeFor(sc.total);
+      return '<div class="art-card" data-id="'+a.id+'">' +
+        '<div class="art-frame">' + (a.imageData ? '<img src="'+a.imageData+'" alt="">' : '<span class="ph">🖼️</span>') +
+          '<span style="position:absolute;top:6px;left:8px;font-size:24px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));">'+medals[i]+'</span>' +
+        '</div>' +
+        '<div class="art-body">' +
+          '<div class="art-meta"><span class="badge '+b.cls+'">'+b.label+'</span><span>'+classLabel(a.grade,a.classNum)+'</span></div>' +
+          '<div class="art-title">'+esc(a.title)+'</div>' +
+          '<div class="art-meta"><span>by '+esc(a.authorNickname)+'</span>'+(a.medium?'<span>'+esc(a.medium)+'</span>':'')+'</div>' +
+          '<div class="art-stats"><span>💬 '+sc.count+'</span><span>⭐ '+sc.total+'점</span></div>' +
+        '</div></div>';
+    }).join("");
+    $all("#hofGrid .art-card").forEach(function(card){
+      card.addEventListener("click", function(){ openArtwork(card.dataset.id); });
+    });
+  }
+
   function openArtwork(id){
     currentArtworkId = id;
+    var fromView = document.querySelector(".view.active");
+    if(fromView && (fromView.dataset.view === "gallery" || fromView.dataset.view === "hof")) artworkReturnTab = fromView.dataset.view;
     var a = artworksCache.filter(function(x){ return x.id===id; })[0];
-    if(!a){ toast("작품을 찾을 수 없어요."); switchTab("gallery"); return; }
+    if(!a){ toast("작품을 찾을 수 없어요."); switchTab(artworkReturnTab); return; }
     switchTab("artwork");
     var sc = artworkScore(a.id); var b = badgeFor(sc.total);
     var myResp = myProfile ? responsesCache.filter(function(r){ return r.artworkId===a.id && r.viewerId===myProfile.id; })[0] : null;
@@ -1154,9 +1226,17 @@
     db.collection("artworks").orderBy("createdAt","desc").limit(300).onSnapshot(function(snap){
       artworksCache = docListFromSnap(snap);
       renderGallery(); renderGalleryFilters();
+      if(document.querySelector('[data-view="hof"]').classList.contains("active")) renderHallOfFame();
       if(currentArtworkId && document.querySelector('[data-view="artwork"]').classList.contains("active")) openArtwork(currentArtworkId);
       if(document.querySelector('[data-view="dash"]').classList.contains("active")) renderDashboard();
     }, function(err){ console.error("artworks", err); });
+
+    db.collection("settings").doc("app").onSnapshot(function(doc){
+      if(doc.exists){
+        var d = doc.data() || {};
+        if(d.teacherPin && /^\d{4}$/.test(d.teacherPin)) TEACHER_PIN = d.teacherPin;
+      }
+    }, function(err){ console.error("settings", err); });
 
     db.collection("students").limit(500).onSnapshot(function(snap){
       studentsCache = docListFromSnap(snap);
@@ -1167,6 +1247,7 @@
     db.collection("responses").limit(2000).onSnapshot(function(snap){
       responsesCache = docListFromSnap(snap);
       renderGallery();
+      if(document.querySelector('[data-view="hof"]').classList.contains("active")) renderHallOfFame();
       if(currentArtworkId && document.querySelector('[data-view="artwork"]').classList.contains("active")) openArtwork(currentArtworkId);
       if(document.querySelector('[data-view="dash"]').classList.contains("active")) renderDashboard();
     }, function(err){ console.error("responses", err); });
