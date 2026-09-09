@@ -513,8 +513,9 @@
       <div class="page-head">
         <span class="eyebrow">For Teachers</span>
         <h2>결과 대시보드</h2>
-        <p class="desc">반별 랭킹, 작품 피드백 수, 학생 포인트가 실시간으로 집계됩니다.</p>
+        <p class="desc">반별 랭킹, 작품 피드백 수, 학생 포인트가 실시간으로 집계됩니다. 아래에서 반을 선택하면 그 반 학생·작품만 볼 수 있어요.</p>
       </div>
+      <div class="segmented" id="dashClassFilter" style="margin-bottom:14px;"></div>
       <div class="stat-row" id="dashStats"></div>
       <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
         <div style="flex:1;min-width:180px;">
@@ -1172,12 +1173,33 @@
       '<span class="bar-num">'+value+'</span>' +
     '</div>';
   }
+  var dashClassFilter = "all";
+  function renderDashFilters(){
+    var wrap = $("#dashClassFilter");
+    var classes = classListFromCache();
+    var html = '<button class="seg-btn ' + (dashClassFilter==="all"?"active":"") + '" data-c="all">전체</button>';
+    classes.forEach(function(c){
+      html += '<button class="seg-btn ' + (dashClassFilter===c.id?"active":"") + '" data-c="' + c.id + '">' + c.label + '</button>';
+    });
+    wrap.innerHTML = html;
+    $all("#dashClassFilter .seg-btn").forEach(function(b){
+      b.addEventListener("click", function(){ dashClassFilter = b.dataset.c; renderDashboard(); });
+    });
+  }
+
   function renderDashboard(){
-    var totalStudents = studentsCache.length;
-    var totalArtworks = artworksCache.length;
-    var totalFeedback = responsesCache.length;
-    var totalPoints = studentsCache.reduce(function(s,d){ return s + (d.points||0) + (d.authorPoints||0); }, 0);
-    var topTierCount = artworksCache.filter(function(a){ var t = artworkScore(a.id).total; return t >= 18; }).length;
+    renderDashFilters();
+    var studentsForDash = dashClassFilter==="all" ? studentsCache : studentsCache.filter(function(s){ return classId(s.grade,s.classNum)===dashClassFilter; });
+    var artworksForDash = dashClassFilter==="all" ? artworksCache : artworksCache.filter(function(a){ return classId(a.grade,a.classNum)===dashClassFilter; });
+    var artIdSetForDash = {};
+    artworksForDash.forEach(function(a){ artIdSetForDash[a.id] = true; });
+    var responsesForDash = dashClassFilter==="all" ? responsesCache : responsesCache.filter(function(r){ return artIdSetForDash[r.artworkId]; });
+
+    var totalStudents = studentsForDash.length;
+    var totalArtworks = artworksForDash.length;
+    var totalFeedback = responsesForDash.length;
+    var totalPoints = studentsForDash.reduce(function(s,d){ return s + (d.points||0) + (d.authorPoints||0); }, 0);
+    var topTierCount = artworksForDash.filter(function(a){ var t = artworkScore(a.id).total; return t >= 18; }).length;
     $("#dashStats").innerHTML = [
       {n: totalStudents, l:"등록 학생 수"},
       {n: totalArtworks, l:"등록 작품 수"},
@@ -1209,16 +1231,16 @@
       return '<tr><td class="rk">'+(i+1)+'</td><td>'+esc(c.label)+'</td><td>'+barCell(c.total, classMax, "c-brass")+'</td></tr>';
     }).join("") : '<tr><td colspan="3" class="empty-note">데이터 없음</td></tr>';
 
-    // 학생 랭킹
-    var studentRows = studentsCache.map(function(s){ return { nickname:s.nickname, label: classLabel(s.grade,s.classNum), total:(s.points||0)+(s.authorPoints||0) }; })
+    // 학생 랭킹 (반 필터 적용, 상위 20명)
+    var studentRows = studentsForDash.map(function(s){ return { nickname:s.nickname, label: classLabel(s.grade,s.classNum), total:(s.points||0)+(s.authorPoints||0) }; })
       .sort(function(a,b){ return b.total-a.total; }).slice(0,20);
     var studentMax = Math.max(1, studentRows[0] ? studentRows[0].total : 1);
     $("#studentRankTable tbody").innerHTML = studentRows.length ? studentRows.map(function(s,i){
       return '<tr><td class="rk">'+(i+1)+'</td><td>'+esc(s.nickname)+'</td><td>'+esc(s.label)+'</td><td>'+barCell(s.total, studentMax, "c-celadon")+'</td></tr>';
     }).join("") : '<tr><td colspan="4" class="empty-note">데이터 없음</td></tr>';
 
-    // 작품 랭킹 (반 전체, 클릭하면 작품·글 전체를 볼 수 있어요)
-    var artRows = artworksCache.map(function(a){
+    // 작품 랭킹 (반 필터 적용, 클릭하면 작품·글 전체를 볼 수 있어요)
+    var artRows = artworksForDash.map(function(a){
       var sc = artworkScore(a.id); var b = badgeFor(sc.total);
       return { id:a.id, badge:b, title:a.title, cls: classLabel(a.grade,a.classNum), author:a.authorNickname, count:sc.count, total:sc.total };
     }).sort(function(x,y){ return y.total-x.total; });
