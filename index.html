@@ -694,6 +694,7 @@
   /* ---------------- 상태 ---------------- */
   var db = null;
   var myProfile = null; // {id, grade, classNum, number, nickname, activityId, activityName}
+  var pendingArtworkAfterSetup = null; // QR로 작품에 들어왔지만 아직 프로필이 없을 때, 등록 후 이어서 보여줄 작품 id
   var artworksCache = [];   // artworks docs {id,...}
   var studentsCache = [];   // students docs
   var responsesCache = [];  // responses docs
@@ -899,6 +900,11 @@
       myProfile = profile; saveLocalProfile(profile);
       renderIdChip(); renderProfileQr();
       toast("등록 완료! QR 명찰이 만들어졌어요.");
+      if(pendingArtworkAfterSetup){
+        var artId = pendingArtworkAfterSetup;
+        pendingArtworkAfterSetup = null;
+        openArtwork(artId);
+      }
     }).catch(function(err){
       console.error(err); toast("등록 중 문제가 발생했어요: " + (err && err.code || "오류"));
     });
@@ -1698,8 +1704,14 @@
     var params = new URLSearchParams(location.search);
     var view = params.get("view"), id = params.get("id");
     if(view === "artwork" && id){
-      currentArtworkId = id;
-      switchTab("artwork");
+      if(myProfile){
+        currentArtworkId = id;
+        switchTab("artwork");
+      } else {
+        pendingArtworkAfterSetup = id;
+        switchTab("setup");
+        toast("작품을 보려면 먼저 반을 선택하고 프로필을 등록해 주세요.");
+      }
       return true;
     } else if(view === "profile" && id){
       // 프로필 요약을 작품 상세와 동일한 레이아웃으로 표시
