@@ -583,7 +583,7 @@
         </div>
         <div class="card">
           <h3 style="font-size:15px;margin-bottom:10px;">🧑‍🎨 학생 포인트 랭킹</h3>
-          <div class="tablewrap"><table class="rank" id="studentRankTable"><thead><tr><th>순위</th><th>닉네임</th><th>반</th><th>포인트</th><th></th></tr></thead><tbody></tbody></table></div>
+          <div class="tablewrap" style="max-height:520px;overflow-y:auto;"><table class="rank" id="studentRankTable"><thead><tr><th>순위</th><th>닉네임</th><th>반</th><th>포인트</th><th></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
       <div class="card" style="margin-top:16px;">
@@ -1041,8 +1041,10 @@
 
   function classListFromCache(){
     var set = {};
-    studentsCache.concat(artworksCache).forEach(function(d){ set[classId(d.grade,d.classNum)] = classLabel(d.grade,d.classNum); });
-    return Object.keys(set).sort().map(function(k){ return {id:k, label:set[k]}; });
+    studentsCache.concat(artworksCache).forEach(function(d){ set[classId(d.grade,d.classNum)] = {grade:d.grade, classNum:d.classNum, label:classLabel(d.grade,d.classNum)}; });
+    // 문자열 정렬(sort())을 쓰면 "3-10"이 "3-2"보다 앞에 오는 등 10반 이상부터 순서가 뒤틀려서, 학년·반 숫자로 직접 정렬해요.
+    return Object.keys(set).map(function(k){ return {id:k, label:set[k].label, grade:set[k].grade, classNum:set[k].classNum}; })
+      .sort(function(a,b){ return (a.grade-b.grade) || (a.classNum-b.classNum); });
   }
 
   function renderGalleryFilters(){
@@ -1584,9 +1586,9 @@
       return '<tr><td class="rk">'+(i+1)+'</td><td>'+esc(c.label)+'</td><td>'+barCell(c.total, classMax, "c-brass")+'</td></tr>';
     }).join("") : '<tr><td colspan="3" class="empty-note">데이터 없음</td></tr>';
 
-    // 학생 랭킹 (반 필터 적용, 상위 20명)
+    // 학생 랭킹 (반 필터 적용, 전원 표시 — 학생 삭제도 이 표에서만 가능하므로 순위 밖으로 잘리는 학생이 없어야 해요)
     var studentRows = studentsForDash.map(function(s){ return { id:s.id, nickname:s.nickname, label: classLabel(s.grade,s.classNum), total:(s.points||0)+(s.authorPoints||0) }; })
-      .sort(function(a,b){ return b.total-a.total; }).slice(0,20);
+      .sort(function(a,b){ return b.total-a.total; });
     var studentMax = Math.max(1, studentRows[0] ? studentRows[0].total : 1);
     $("#studentRankTable tbody").innerHTML = studentRows.length ? studentRows.map(function(s,i){
       return '<tr><td class="rk">'+(i+1)+'</td><td>'+esc(s.nickname)+'</td><td>'+esc(s.label)+'</td><td>'+barCell(s.total, studentMax, "c-celadon")+'</td><td><button class="close-x" data-del-student="'+s.id+'" title="학생 삭제" style="position:static;">✕</button></td></tr>';
@@ -1621,7 +1623,7 @@
 
   function initDbSubscriptions(){
     if(!db) return;
-    db.collection("artworks").orderBy("createdAt","desc").limit(300).onSnapshot(function(snap){
+    db.collection("artworks").orderBy("createdAt","desc").limit(1500).onSnapshot(function(snap){
       artworksCache = docListFromSnap(snap);
       renderGallery(); renderGalleryFilters();
       if(document.querySelector('[data-view="hof"]').classList.contains("active")) renderHallOfFame();
@@ -1636,14 +1638,14 @@
       }
     }, function(err){ console.error("settings", err); });
 
-    db.collection("activities").orderBy("createdAt","desc").limit(50).onSnapshot(function(snap){
+    db.collection("activities").orderBy("createdAt","desc").limit(100).onSnapshot(function(snap){
       activitiesCache = docListFromSnap(snap);
       renderActivityOptions();
       if(document.querySelector('[data-view="dash"]').classList.contains("active")){ renderActivityManage(); renderDashboard(); }
       if(document.querySelector('[data-view="gallery"]').classList.contains("active")){ renderGallery(); renderGalleryFilters(); }
     }, function(err){ console.error("activities", err); });
 
-    db.collection("students").limit(500).onSnapshot(function(snap){
+    db.collection("students").limit(1000).onSnapshot(function(snap){
       studentsCache = docListFromSnap(snap);
       // 교사가 이 학생을 대시보드에서 삭제했다면, 이 기기에 남아있던 등록 정보(로컬 캐시)도 함께 지워요.
       if(myProfile && !getStudentDoc(myProfile.id)){
@@ -1658,7 +1660,7 @@
       if(document.querySelector('[data-view="dash"]').classList.contains("active")) renderDashboard();
     }, function(err){ console.error("students", err); });
 
-    db.collection("responses").limit(2000).onSnapshot(function(snap){
+    db.collection("responses").limit(6000).onSnapshot(function(snap){
       responsesCache = docListFromSnap(snap);
       renderGallery();
       if(document.querySelector('[data-view="hof"]').classList.contains("active")) renderHallOfFame();
@@ -1666,7 +1668,7 @@
       if(document.querySelector('[data-view="dash"]').classList.contains("active")) renderDashboard();
     }, function(err){ console.error("responses", err); });
 
-    db.collection("reflections").limit(500).onSnapshot(function(snap){
+    db.collection("reflections").limit(1000).onSnapshot(function(snap){
       pledgesCache = docListFromSnap(snap);
       if(document.querySelector('[data-view="pledge"]').classList.contains("active")) renderPledges();
     }, function(err){ console.error("reflections", err); });
