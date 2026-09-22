@@ -255,10 +255,17 @@
   @media print{
     body *{visibility:hidden;}
     .app{display:none;} /* 화면에 항상 떠 있는 전체 앱 화면은 인쇄 시 완전히 제거해서, 남는 빈 공간 때문에 페이지가 여러 장으로 나뉘고 고정 위치인 QR 인쇄 영역이 각 장마다 반복 출력되는 문제를 막아요 */
-    #printArea, #printArea *{visibility:visible;}
+    #printArea, #printArea *, #bulkPrintArea, #bulkPrintArea *{visibility:visible;}
     #printArea{position:fixed;top:0;left:0;width:100%;}
+    #bulkPrintArea{position:fixed;top:0;left:0;width:100%;}
   }
   [hidden]{display:none!important;}
+  .badge-print-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:20px;}
+  .badge-print-item{border:1px solid #ddd;border-radius:10px;padding:12px;text-align:center;break-inside:avoid;page-break-inside:avoid;}
+  .badge-print-item .bp-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;color:#888;text-transform:uppercase;}
+  .badge-print-item .bp-nick{font-family:var(--font-display,inherit);font-size:16px;margin:2px 0;}
+  .badge-print-item .bp-meta{font-size:11.5px;color:#555;margin-bottom:8px;}
+  .badge-print-item .bp-qr{display:flex;justify-content:center;}
 
   .label-card{
     display:inline-block;text-align:left;border:2px solid #FF9FB8;border-radius:14px;
@@ -591,6 +598,15 @@
         <p class="empty-note" style="text-align:left;padding:0 0 8px;">행을 클릭하면 작품 사진과 학생들이 남긴 감상 퀴즈 답변·질문을 모두 볼 수 있어요.</p>
         <div class="tablewrap"><table class="rank" id="artRankTable"><thead><tr><th>등급</th><th>작품</th><th>활동</th><th>반</th><th>작가</th><th>피드백 수</th><th>총점</th></tr></thead><tbody></tbody></table></div>
       </div>
+      <div class="card" style="margin-top:16px;">
+        <h3 style="font-size:15px;margin-bottom:10px;">🖨️ 작품 QR 일괄 인쇄</h3>
+        <p class="empty-note" style="text-align:left;padding:0 0 8px;">위에서 선택한 반·활동의 학생 작품 QR을 한 번에 인쇄해서 작품 옆에 붙여두면, 친구들이 스캔해서 감상하고 퀴즈·글을 남길 수 있어요.</p>
+        <button class="btn btn-primary" id="btnBulkPrint" style="width:100%;">🖨️ 지금 목록의 작품 QR 모아 인쇄</button>
+        <p class="empty-note" id="bulkPrintHint" style="padding:8px 0 0;text-align:left;font-size:11.5px;"></p>
+      </div>
+      <div id="bulkPrintArea" style="display:none;">
+        <div class="badge-print-grid" id="bulkPrintGrid"></div>
+      </div>
       <div class="grid cols-2" style="margin-top:16px;align-items:start;">
         <div class="card">
           <h3 style="font-size:14px;margin-bottom:2px;">🎨 활동(프로젝트) 관리</h3>
@@ -798,6 +814,32 @@
       hint.textContent = "저장 중 오류가 발생했어요. 다시 시도해 주세요.";
     });
   });
+
+  var bulkPrintBtn = $("#btnBulkPrint");
+  if(bulkPrintBtn){
+    bulkPrintBtn.addEventListener("click", function(){
+      var hint = $("#bulkPrintHint");
+      var list = dashClassFilter==="all" ? artworksCache.slice() : artworksCache.filter(function(a){ return classId(a.grade,a.classNum)===dashClassFilter; });
+      if(dashActivityFilter !== "all"){ list = list.filter(function(a){ return a.activityId===dashActivityFilter; }); }
+      if(!list.length){ hint.textContent = "인쇄할 작품이 없어요. 위 반·활동 필터를 확인해 주세요."; return; }
+      list.sort(function(a,b){ return (a.grade-b.grade) || (a.classNum-b.classNum) || String(a.authorNickname||"").localeCompare(String(b.authorNickname||"")); });
+      var grid = $("#bulkPrintGrid");
+      grid.innerHTML = list.map(function(a,i){
+        return '<div class="badge-print-item">' +
+          '<div class="bp-eyebrow">' + esc(classLabel(a.grade,a.classNum)) + '</div>' +
+          '<div class="bp-nick">' + esc(a.authorNickname) + '</div>' +
+          '<div class="bp-meta">' + esc(a.title) + '</div>' +
+          '<div class="bp-qr" id="bpqr_' + i + '"></div>' +
+        '</div>';
+      }).join("");
+      list.forEach(function(a,i){
+        renderQrInto("#bpqr_" + i, pageUrl({view:"artwork", id:a.id}), 88);
+      });
+      hint.textContent = list.length + "개 작품 QR을 준비했어요. 인쇄 창이 열리면 출력해 주세요.";
+      $("#bulkPrintArea").style.display = "block";
+      setTimeout(function(){ window.print(); }, 60);
+    });
+  }
 
   /* ---------------- 프로필 ---------------- */
   function populateClassSelect(){
