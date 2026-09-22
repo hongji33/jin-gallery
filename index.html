@@ -412,6 +412,14 @@
     font-size:12.5px;color:var(--ink-soft);cursor:pointer;
   }
   .seg-btn.active{background:var(--celadon);color:#0C1712;border-color:var(--celadon-deep);font-weight:600;}
+
+  .qtype-row{display:flex;gap:6px;margin:6px 0 8px;}
+  .mc-options{border:1px dashed var(--border);border-radius:var(--radius-s);padding:8px 10px;margin-bottom:6px;}
+  .mc-opt-row{display:flex;align-items:center;gap:7px;margin-bottom:6px;}
+  .mc-opt-row input[type="text"]{flex:1;}
+  .mc-opt-row input[type="radio"]{flex-shrink:0;width:16px;height:16px;}
+  .quiz-answer-mc label{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-s);margin-bottom:6px;font-size:13px;cursor:pointer;}
+  .quiz-answer-mc input[type="radio"]{width:16px;height:16px;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -539,9 +547,9 @@
           </div>
           <div class="field"><label>작품 제목</label><input type="text" id="inTitle" maxlength="30" placeholder="예: 민화 속 까치호랑이"></div>
           <div class="field"><label>사용한 재료·기법</label><input type="text" id="inMedium" maxlength="30" placeholder="예: 한지에 채색, 아크릴 물감"></div>
-          <div class="field"><label>작품 소개</label><textarea id="inDesc" maxlength="300" placeholder="작품에 담긴 이야기나 표현 의도를 소개해 주세요."></textarea></div>
-          <div class="field"><label>퀴즈 1</label><input type="text" id="inQ1" maxlength="60" placeholder="예: 이 작품에서 사용한 주요 색은?"></div>
-          <div class="field"><label>퀴즈 2</label><input type="text" id="inQ2" maxlength="60" placeholder="예: 작가가 표현하고 싶었던 감정은?"></div>
+          <div class="field"><label>작가의 작품 소개</label><textarea id="inDesc" maxlength="300" placeholder="작품에 담긴 이야기나 표현 의도를 내가 직접 소개해 주세요."></textarea></div>
+          <div class="field"><label>AI의 작품 해설 <span style="font-weight:400;color:var(--ink-soft);font-size:11.5px;">(AI 챗봇에게 물어본 해설을 복사해서 붙여넣어요)</span></label><textarea id="inAiDesc" maxlength="600" placeholder="AI 챗봇이 해준 작품 해설을 여기에 붙여넣어 주세요."></textarea></div>
+          <div id="inQuizBuilder"></div>
           <button class="btn btn-primary" id="btnSubmitArt" style="width:100%">작품 등록하고 QR 발급받기</button>
           <p class="empty-note" id="registerHint" style="padding:10px 0 0;text-align:left;"></p>
         </div>
@@ -1039,15 +1047,86 @@
     reader.readAsDataURL(file);
   });
 
+  /* ---------------- 퀴즈 빌더 (주관식/객관식 선택) ---------------- */
+  function normalizeQuizQ(q){
+    // 예전에 등록된 작품은 quiz가 문자열 배열이라, 그런 경우는 주관식 질문으로 취급해요.
+    if(typeof q === "string") return { type:"text", text:q };
+    return q || { type:"text", text:"" };
+  }
+  function quizBuilderHtml(prefix, i, existing){
+    var q = normalizeQuizQ(existing);
+    var isMc = q.type === "mc";
+    var choices = q.choices || ["","","",""];
+    var correct = typeof q.correctIndex === "number" ? q.correctIndex : 0;
+    var rows = [0,1,2,3].map(function(ci){
+      return '<div class="mc-opt-row">' +
+        '<input type="radio" name="' + prefix + 'Q' + i + 'correct" value="' + ci + '" ' + (correct===ci?"checked":"") + '>' +
+        '<input type="text" id="' + prefix + 'Q' + i + 'c' + ci + '" maxlength="30" placeholder="보기 ' + (ci+1) + (ci>=2?" (선택)":"") + '" value="' + esc(choices[ci]||"") + '">' +
+      '</div>';
+    }).join("");
+    return '<div class="field">' +
+      '<label>퀴즈 ' + (i+1) + '</label>' +
+      '<input type="text" id="' + prefix + 'Q' + i + '" maxlength="60" placeholder="예: 이 작품에서 사용한 주요 색은?" value="' + esc(q.text||"") + '">' +
+      '<div class="qtype-row">' +
+        '<button type="button" class="seg-btn qtype-btn ' + (!isMc?"active":"") + '" data-qtype="text" data-qi="' + i + '" data-qp="' + prefix + '">✍️ 주관식</button>' +
+        '<button type="button" class="seg-btn qtype-btn ' + (isMc?"active":"") + '" data-qtype="mc" data-qi="' + i + '" data-qp="' + prefix + '">☑️ 객관식</button>' +
+      '</div>' +
+      '<div class="mc-options" id="' + prefix + 'Q' + i + 'mc" style="display:' + (isMc?"block":"none") + ';">' +
+        rows +
+        '<p class="empty-note" style="padding:0;text-align:left;font-size:11px;">정답 앞의 동그라미를 선택해 주세요. (보기 3, 4는 선택 사항이에요)</p>' +
+      '</div>' +
+    '</div>';
+  }
+  function renderQuizBuilder(container, prefix, existingQuiz){
+    var eq = existingQuiz || [];
+    container.innerHTML = quizBuilderHtml(prefix, 0, eq[0]) + quizBuilderHtml(prefix, 1, eq[1]);
+    wireQuizBuilder(container);
+  }
+  function wireQuizBuilder(container){
+    container.querySelectorAll(".qtype-btn").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var i = btn.dataset.qi, p = btn.dataset.qp;
+        container.querySelectorAll('.qtype-btn[data-qi="'+i+'"][data-qp="'+p+'"]').forEach(function(b){ b.classList.remove("active"); });
+        btn.classList.add("active");
+        var mcBox = container.querySelector("#" + p + "Q" + i + "mc");
+        if(mcBox) mcBox.style.display = (btn.dataset.qtype === "mc") ? "block" : "none";
+      });
+    });
+  }
+  function readQuizFromBuilder(container, prefix){
+    var result = [];
+    for(var i=0; i<2; i++){
+      var text = container.querySelector("#" + prefix + "Q" + i).value.trim();
+      var activeBtn = container.querySelector('.qtype-btn.active[data-qi="'+i+'"][data-qp="'+prefix+'"]');
+      var type = activeBtn ? activeBtn.dataset.qtype : "text";
+      if(type === "mc"){
+        var choices = [0,1,2,3].map(function(ci){ return container.querySelector("#" + prefix + "Q" + i + "c" + ci).value.trim(); }).filter(function(c){ return !!c; });
+        var correctRadio = container.querySelector('input[name="'+prefix+'Q'+i+'correct"]:checked');
+        var correctIndex = correctRadio ? parseInt(correctRadio.value, 10) : 0;
+        var correctText = [0,1,2,3].map(function(ci){ return container.querySelector("#" + prefix + "Q" + i + "c" + ci).value.trim(); })[correctIndex];
+        // 정답으로 고른 보기가 비어있지 않고 실제 보기 목록에 남아있는지로 정답 인덱스를 다시 맞춰요.
+        var fixedIndex = choices.indexOf(correctText);
+        result.push({ type:"mc", text:text, choices:choices, correctIndex: fixedIndex >= 0 ? fixedIndex : 0, ok: !!text && choices.length>=2 && fixedIndex>=0 });
+      } else {
+        result.push({ type:"text", text:text, ok: !!text });
+      }
+    }
+    return result;
+  }
+
+  var inQuizBuilderEl = $("#inQuizBuilder");
+  if(inQuizBuilderEl) renderQuizBuilder(inQuizBuilderEl, "in", []);
+
   $("#btnSubmitArt").addEventListener("click", function(){
     var hint = $("#registerHint");
     if(!myProfile){ hint.textContent = "먼저 [반 선택] 탭에서 프로필을 등록해 주세요."; return; }
     var title = $("#inTitle").value.trim();
     var medium = $("#inMedium").value.trim();
     var desc = $("#inDesc").value.trim();
-    var q1 = $("#inQ1").value.trim(), q2 = $("#inQ2").value.trim();
+    var aiDesc = $("#inAiDesc").value.trim();
+    var quiz = readQuizFromBuilder(inQuizBuilderEl, "in");
     if(!title){ hint.textContent = "작품 제목을 입력해 주세요."; return; }
-    if(!q1 || !q2){ hint.textContent = "퀴즈 2가지를 모두 입력해 주세요."; return; }
+    if(quiz.some(function(q){ return !q.ok; })){ hint.textContent = "퀴즈 2가지를 모두 입력해 주세요. 객관식은 질문과 보기 2개 이상, 정답 선택까지 필요해요."; return; }
     if(!pendingImageData){ hint.textContent = "작품 이미지를 선택해 주세요."; return; }
     if(!db){ hint.textContent = "데이터 연결을 확인하고 있어요."; return; }
     hint.textContent = "등록 중…";
@@ -1055,14 +1134,16 @@
       authorId: myProfile.id, authorNickname: myProfile.nickname,
       grade: myProfile.grade, classNum: myProfile.classNum,
       activityId: myProfile.activityId || "", activityName: myProfile.activityName || "",
-      title: title, medium: medium, desc: desc, quiz: [q1,q2],
+      title: title, medium: medium, desc: desc, aiDesc: aiDesc,
+      quiz: quiz.map(function(q){ return q.type==="mc" ? {type:"mc",text:q.text,choices:q.choices,correctIndex:q.correctIndex} : {type:"text",text:q.text}; }),
       imageData: pendingImageData, createdAt: nowIso()
     }).then(function(ref){
       hint.textContent = "";
       toast("작품이 등록되었어요!");
       var url = pageUrl({view:"artwork", id: ref.id});
       openQrModal(title, "작품 QR · " + myProfile.nickname, url, medium);
-      $("#inTitle").value=""; $("#inMedium").value=""; $("#inDesc").value=""; $("#inQ1").value=""; $("#inQ2").value="";
+      $("#inTitle").value=""; $("#inMedium").value=""; $("#inDesc").value=""; $("#inAiDesc").value="";
+      renderQuizBuilder(inQuizBuilderEl, "in", []);
       $("#inImage").value=""; $("#imgPreview").innerHTML='<span class="ph">🖼️</span>'; pendingImageData=null;
     }).catch(function(err){
       console.error(err);
@@ -1194,8 +1275,15 @@
     } else if(!myProfile){
       quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">퀴즈에 참여하려면 먼저 [반 선택] 탭에서 프로필을 등록해 주세요.</div>';
     } else {
-      quizHtml = a.quiz.map(function(q,i){
-        return '<div class="quiz-q"><div class="q-text">Q'+(i+1)+'. '+esc(q)+'</div><textarea id="qa_'+i+'" placeholder="나의 감상평을 적어보세요"></textarea></div>';
+      quizHtml = a.quiz.map(function(qRaw,i){
+        var q = normalizeQuizQ(qRaw);
+        if(q.type === "mc"){
+          var opts = (q.choices||[]).map(function(c,ci){
+            return '<label><input type="radio" name="qa_'+i+'" value="'+ci+'"> '+esc(c)+'</label>';
+          }).join("");
+          return '<div class="quiz-q"><div class="q-text">Q'+(i+1)+'. '+esc(q.text)+'</div><div class="quiz-answer-mc">'+opts+'</div></div>';
+        }
+        return '<div class="quiz-q"><div class="q-text">Q'+(i+1)+'. '+esc(q.text)+'</div><textarea id="qa_'+i+'" placeholder="나의 감상평을 적어보세요"></textarea></div>';
       }).join("") +
       '<div class="quiz-q"><div class="q-text">작품에 대해 궁금한 점 (깊이 있는 질문 1개)</div><input type="text" id="qaQuestion" maxlength="80" placeholder="예: 이 부분은 어떤 의미로 표현하신 건가요?"></div>' +
       '<button class="btn btn-primary" id="btnSubmitQuiz" style="margin-top:14px;width:100%;">답변 제출하고 포인트 받기</button><p class="empty-note" id="quizHint" style="text-align:left;"></p>';
@@ -1250,7 +1338,15 @@
         '</div>' +
         '<div>' +
           '<h2 style="font-size:22px;">'+esc(a.title)+'</h2>' +
-          '<p style="color:var(--ink-soft);font-size:13.5px;margin-top:8px;">'+esc(a.desc||"작품 소개가 없습니다.")+'</p>' +
+          '<div class="card" style="margin-top:12px;">' +
+            '<h3 style="font-size:13px;margin-bottom:4px;">🖌️ 작가의 작품 소개</h3>' +
+            '<p style="color:var(--ink-soft);font-size:13.5px;white-space:pre-wrap;">'+esc(a.desc||"작가가 아직 작품 소개를 적지 않았어요.")+'</p>' +
+          '</div>' +
+          (a.aiDesc ? (
+          '<div class="card" style="margin-top:10px;">' +
+            '<h3 style="font-size:13px;margin-bottom:4px;">🤖 AI의 작품 해설</h3>' +
+            '<p style="color:var(--ink-soft);font-size:13.5px;white-space:pre-wrap;">'+esc(a.aiDesc)+'</p>' +
+          '</div>') : "") +
           '<div class="card" style="margin-top:16px;">' +
             '<h3 style="font-size:14px;margin-bottom:4px;">감상 퀴즈</h3>' + quizHtml +
           '</div>' +
@@ -1302,9 +1398,9 @@
         '<h3 style="margin-bottom:12px;">✏️ 작품 정보 수정</h3>' +
         '<div class="field"><label>작품 제목</label><input type="text" id="editTitle" maxlength="30" value="'+esc(a.title||"")+'"></div>' +
         '<div class="field"><label>사용한 재료·기법</label><input type="text" id="editMedium" maxlength="30" value="'+esc(a.medium||"")+'"></div>' +
-        '<div class="field"><label>작품 소개</label><textarea id="editDesc" maxlength="300">'+esc(a.desc||"")+'</textarea></div>' +
-        '<div class="field"><label>퀴즈 1</label><input type="text" id="editQ1" maxlength="60" value="'+esc((a.quiz&&a.quiz[0])||"")+'"></div>' +
-        '<div class="field"><label>퀴즈 2</label><input type="text" id="editQ2" maxlength="60" value="'+esc((a.quiz&&a.quiz[1])||"")+'"></div>' +
+        '<div class="field"><label>작가의 작품 소개</label><textarea id="editDesc" maxlength="300">'+esc(a.desc||"")+'</textarea></div>' +
+        '<div class="field"><label>AI의 작품 해설</label><textarea id="editAiDesc" maxlength="600">'+esc(a.aiDesc||"")+'</textarea></div>' +
+        '<div id="editQuizBuilder"></div>' +
         '<p class="empty-note" style="text-align:left;padding:0 0 10px;">사진은 여기서 바꿀 수 없어요. 사진을 바꾸려면 작품을 삭제하고 새로 등록해 주세요.</p>' +
         '<div style="display:flex;gap:8px;">' +
           '<button class="btn btn-primary" id="btnSaveArtEdit">저장하기</button>' +
@@ -1312,18 +1408,24 @@
         '</div>' +
         '<p class="empty-note" id="artEditHint" style="text-align:left;padding:8px 0 0;"></p>' +
       '</div>';
+    var editQuizBuilderEl = $("#editQuizBuilder");
+    renderQuizBuilder(editQuizBuilderEl, "edit", a.quiz || []);
     $("#btnCancelArtEdit").addEventListener("click", function(){ openArtwork(a.id); });
     $("#btnSaveArtEdit").addEventListener("click", function(){
       var title = $("#editTitle").value.trim();
       var medium = $("#editMedium").value.trim();
       var desc = $("#editDesc").value.trim();
-      var q1 = $("#editQ1").value.trim(), q2 = $("#editQ2").value.trim();
+      var aiDesc = $("#editAiDesc").value.trim();
+      var quiz = readQuizFromBuilder(editQuizBuilderEl, "edit");
       var hint = $("#artEditHint");
       if(!title){ hint.textContent = "작품 제목을 입력해 주세요."; return; }
-      if(!q1 || !q2){ hint.textContent = "퀴즈 2가지를 모두 입력해 주세요."; return; }
+      if(quiz.some(function(q){ return !q.ok; })){ hint.textContent = "퀴즈 2가지를 모두 입력해 주세요. 객관식은 질문과 보기 2개 이상, 정답 선택까지 필요해요."; return; }
       if(!db){ hint.textContent = "데이터 연결을 확인하고 있어요."; return; }
       hint.textContent = "저장 중…";
-      db.doc("artworks/" + a.id).update({ title: title, medium: medium, desc: desc, quiz: [q1, q2] }).then(function(){
+      db.doc("artworks/" + a.id).update({
+        title: title, medium: medium, desc: desc, aiDesc: aiDesc,
+        quiz: quiz.map(function(q){ return q.type==="mc" ? {type:"mc",text:q.text,choices:q.choices,correctIndex:q.correctIndex} : {type:"text",text:q.text}; })
+      }).then(function(){
         toast("작품 정보를 수정했어요.");
         openArtwork(a.id);
       }).catch(function(err){ console.error(err); hint.textContent = "저장 중 오류가 발생했어요."; });
@@ -1438,11 +1540,25 @@
     if(quizSubmitting) return; /* 제출 버튼 연속 클릭으로 중복 제출되지 않도록 잠금 */
     var qCount = (a.quiz && a.quiz.length) || 0;
     var answers = [];
-    for(var i=0; i<qCount; i++){ var el = $("#qa_"+i); answers.push(el ? el.value.trim() : ""); }
+    var scores = [];
+    for(var i=0; i<qCount; i++){
+      var q = normalizeQuizQ(a.quiz[i]);
+      if(q.type === "mc"){
+        var checked = document.querySelector('input[name="qa_'+i+'"]:checked');
+        var choiceIdx = checked ? parseInt(checked.value, 10) : -1;
+        var choiceText = choiceIdx >= 0 ? (q.choices[choiceIdx] || "") : "";
+        answers.push(choiceText);
+        scores.push(choiceIdx === q.correctIndex ? 2 : 0);
+      } else {
+        var el = $("#qa_"+i);
+        var text = el ? el.value.trim() : "";
+        answers.push(text);
+        scores.push(scoreAnswer(text));
+      }
+    }
     var critique = ($("#qaQuestion") ? $("#qaQuestion").value.trim() : "");
     if(answers.some(function(x){ return !x; })){ hint.textContent = "퀴즈에 모두 답해 주세요."; return; }
     if(!critique){ hint.textContent = "작품에 대한 질문을 하나 적어 주세요."; return; }
-    var scores = answers.map(scoreAnswer);
     var totalScore = scores.reduce(function(s,v){return s+v;},0) + (critique.length >= 10 ? 1 : 0);
     var viewerPoints = 5 + totalScore;
     var authorBonus = 2 + Math.ceil(totalScore/3);
