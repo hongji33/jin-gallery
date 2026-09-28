@@ -277,7 +277,9 @@
   .qview-thumb img{width:100%;height:100%;object-fit:cover;}
   .qview-body{flex:1;min-width:0;}
   .qview-meta{font-size:11.5px;color:var(--ink-soft);margin-bottom:2px;}
-  .qview-question{font-size:13.5px;color:var(--ink);}
+  .qview-question{font-size:13.5px;color:var(--ink);margin-top:4px;font-weight:600;}
+  .qview-qa{font-size:12.5px;color:var(--ink-soft);margin:2px 0;line-height:1.5;}
+  .qview-qa b{color:var(--ink);}
 
   .label-card{
     display:inline-block;text-align:left;border:2px solid #FF9FB8;border-radius:14px;
@@ -633,7 +635,7 @@
       </div>
       <div class="card" style="margin-top:16px;">
         <h3 style="font-size:15px;margin-bottom:10px;">❓ 반별 질문 모아보기</h3>
-        <p class="empty-note" style="text-align:left;padding:0 0 8px;">학생들이 작품을 감상하며 남긴 "궁금한 점" 질문만 반별로 모아서 작품 사진과 함께 볼 수 있어요.</p>
+        <p class="empty-note" style="text-align:left;padding:0 0 8px;">학생들의 감상 퀴즈 답변 2개와 "궁금한 점" 질문을 작품 사진과 함께 반별로 모아서 볼 수 있어요.</p>
         <button class="btn btn-primary" id="btnOpenQuestions" style="width:100%;">❓ 질문 모아보기 열기</button>
       </div>
       <div class="grid cols-2" style="margin-top:16px;align-items:start;">
@@ -663,7 +665,7 @@
       <div class="page-head">
         <span class="eyebrow">Teacher · Questions</span>
         <h2>반별 질문 모아보기</h2>
-        <p class="desc">학생들이 작품을 감상하며 남긴 "궁금한 점" 질문을 반별로 모아서 작품 사진과 함께 볼 수 있어요.</p>
+        <p class="desc">학생들의 감상 퀴즈 답변 2개와 "궁금한 점" 질문을 작품 사진과 함께 반별로 모아서 볼 수 있어요.</p>
       </div>
       <div class="segmented" id="questionsClassFilter" style="margin-bottom:10px;"></div>
       <button class="btn btn-primary" id="btnPrintQuestions" style="margin-bottom:14px;">🖨️ 지금 화면 인쇄하기</button>
@@ -1483,7 +1485,11 @@
         var answersHtml = "";
         if(showFullAnswers && r.answers && r.answers.length){
           answersHtml = '<div style="font-size:12.5px;color:var(--ink-soft);margin-top:2px;line-height:1.5;">' +
-            r.answers.map(function(ans,i){ return 'Q'+(i+1)+'. '+esc(ans); }).join('<br>') +
+            r.answers.map(function(ans,i){
+              var qq = (a.quiz && a.quiz[i]) ? normalizeQuizQ(a.quiz[i]) : null;
+              var qLabel = qq && qq.text ? esc(qq.text) : ("질문 "+(i+1));
+              return '<b>Q'+(i+1)+'.</b> '+qLabel+' → '+esc(ans);
+            }).join('<br>') +
           '</div>';
         }
         var canDeleteThis = teacherMode || (myProfile && r.viewerId === myProfile.id);
@@ -1998,11 +2004,17 @@
     var a = it.a, r = it.r;
     var d = r.createdAt ? new Date(r.createdAt) : null;
     var ds = d ? (d.getMonth()+1)+"."+d.getDate() : "";
+    var quizLines = (a.quiz||[]).map(function(qRaw,i){
+      var q = normalizeQuizQ(qRaw);
+      var ans = (r.answers && r.answers[i]) ? r.answers[i] : "-";
+      return '<div class="qview-qa"><b>Q'+(i+1)+'.</b> '+esc(q.text)+' <span style="color:var(--ink-soft);">→</span> '+esc(ans)+'</div>';
+    }).join("");
     return '<div class="qview-item">' +
       '<div class="qview-thumb">' + (a.imageData ? '<img src="'+a.imageData+'" alt="">' : '🖼️') + '</div>' +
       '<div class="qview-body">' +
         '<div class="qview-meta">'+esc(r.viewerNickname)+' → <b>'+esc(a.title)+'</b> ('+esc(a.authorNickname)+'의 작품) · '+ds+'</div>' +
-        '<div class="qview-question">'+esc(r.critique)+'</div>' +
+        quizLines +
+        (r.critique ? '<div class="qview-question">💬 '+esc(r.critique)+'</div>' : '') +
       '</div>' +
     '</div>';
   }
