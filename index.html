@@ -255,9 +255,10 @@
   @media print{
     body *{visibility:hidden;}
     .app{display:none;} /* 화면에 항상 떠 있는 전체 앱 화면은 인쇄 시 완전히 제거해서, 남는 빈 공간 때문에 페이지가 여러 장으로 나뉘고 고정 위치인 QR 인쇄 영역이 각 장마다 반복 출력되는 문제를 막아요 */
-    #printArea, #printArea *, #bulkPrintArea, #bulkPrintArea *{visibility:visible;}
+    #printArea, #printArea *, #bulkPrintArea, #bulkPrintArea *, #questionsPrintArea, #questionsPrintArea *{visibility:visible;}
     #printArea{position:fixed;top:0;left:0;width:100%;}
     #bulkPrintArea{position:fixed;top:0;left:0;width:100%;}
+    #questionsPrintArea{position:fixed;top:0;left:0;width:100%;}
   }
   [hidden]{display:none!important;}
   .badge-print-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:20px;}
@@ -268,6 +269,15 @@
   .badge-print-item .bp-qr{display:flex;justify-content:center;}
   .bp-class-header{grid-column:1/-1;font-family:var(--font-display,inherit);font-size:16px;font-weight:700;padding:4px 2px 6px;border-bottom:2px solid #333;margin:4px 0 2px;}
   .bp-class-header.bp-page-break{page-break-before:always;break-before:page;}
+
+  .qview-class-header{font-family:var(--font-display,inherit);font-size:16px;font-weight:700;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--border);}
+  .qview-class-header:first-child{margin-top:0;}
+  .qview-item{display:flex;gap:12px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-m);margin-bottom:8px;background:var(--card-bg);}
+  .qview-thumb{width:64px;height:64px;border-radius:var(--radius-s);overflow:hidden;flex-shrink:0;background:var(--wall-2);display:flex;align-items:center;justify-content:center;font-size:22px;}
+  .qview-thumb img{width:100%;height:100%;object-fit:cover;}
+  .qview-body{flex:1;min-width:0;}
+  .qview-meta{font-size:11.5px;color:var(--ink-soft);margin-bottom:2px;}
+  .qview-question{font-size:13.5px;color:var(--ink);}
 
   .label-card{
     display:inline-block;text-align:left;border:2px solid #FF9FB8;border-radius:14px;
@@ -621,6 +631,11 @@
         <button class="btn btn-primary" id="btnBulkPrint" style="width:100%;">🖨️ 지금 목록의 작품 QR 모아 인쇄</button>
         <p class="empty-note" id="bulkPrintHint" style="padding:8px 0 0;text-align:left;font-size:11.5px;"></p>
       </div>
+      <div class="card" style="margin-top:16px;">
+        <h3 style="font-size:15px;margin-bottom:10px;">❓ 반별 질문 모아보기</h3>
+        <p class="empty-note" style="text-align:left;padding:0 0 8px;">학생들이 작품을 감상하며 남긴 "궁금한 점" 질문만 반별로 모아서 작품 사진과 함께 볼 수 있어요.</p>
+        <button class="btn btn-primary" id="btnOpenQuestions" style="width:100%;">❓ 질문 모아보기 열기</button>
+      </div>
       <div class="grid cols-2" style="margin-top:16px;align-items:start;">
         <div class="card">
           <h3 style="font-size:14px;margin-bottom:2px;">🎨 활동(프로젝트) 관리</h3>
@@ -640,6 +655,19 @@
           <p class="empty-note" id="pinChangeHint" style="padding:8px 0 0;text-align:left;font-size:12px;"></p>
         </div>
       </div>
+    </section>
+
+    <!-- 반별 질문 모아보기 -->
+    <section class="view" data-view="questions">
+      <button class="btn btn-ghost" id="btnBackQuestions" style="margin-bottom:14px;">← 대시보드로</button>
+      <div class="page-head">
+        <span class="eyebrow">Teacher · Questions</span>
+        <h2>반별 질문 모아보기</h2>
+        <p class="desc">학생들이 작품을 감상하며 남긴 "궁금한 점" 질문을 반별로 모아서 작품 사진과 함께 볼 수 있어요.</p>
+      </div>
+      <div class="segmented" id="questionsClassFilter" style="margin-bottom:10px;"></div>
+      <button class="btn btn-primary" id="btnPrintQuestions" style="margin-bottom:14px;">🖨️ 지금 화면 인쇄하기</button>
+      <div id="questionsContent"></div>
     </section>
   </main>
 </div>
@@ -693,6 +721,11 @@
 <!-- 반별 작품 QR 일괄 인쇄 영역 (인쇄 시에는 .app 전체가 숨겨지므로, 인쇄될 내용은 반드시 .app 바깥에 있어야 해요) -->
 <div id="bulkPrintArea" style="display:none;">
   <div class="badge-print-grid" id="bulkPrintGrid"></div>
+</div>
+
+<!-- 반별 질문 모아보기 인쇄 영역 (마찬가지로 .app 바깥에 있어야 인쇄가 잘려서 나오지 않아요) -->
+<div id="questionsPrintArea" style="display:none;padding:20px;">
+  <div id="questionsPrintContent"></div>
 </div>
 
 <!-- 인쇄 영역 (전시 캡션표 스타일) -->
@@ -781,6 +814,7 @@
     if(name === "hof") renderHallOfFame();
     if(name === "pledge"){ renderPledgeFilters(); renderPledges(); }
     if(name === "register"){ registerMode = "auto"; renderRegisterView(); }
+    if(name === "questions") renderQuestionsView();
   }
   var TEACHER_PIN = "1234"; // Firestore settings/app 문서에 값이 있으면 그 값으로 덮어씌워짐
   function isTeacherUnlocked(){ try{ return sessionStorage.getItem("jpmp_teacher_ok") === "1"; }catch(e){ return false; } }
@@ -1936,6 +1970,91 @@
     });
   }
 
+  var btnOpenQuestions = $("#btnOpenQuestions");
+  if(btnOpenQuestions) btnOpenQuestions.addEventListener("click", function(){ switchTab("questions"); });
+  var btnBackQuestions = $("#btnBackQuestions");
+  if(btnBackQuestions) btnBackQuestions.addEventListener("click", function(){ switchTab("dash"); });
+
+  /* ---------------- 반별 질문 모아보기 ---------------- */
+  var questionsClassFilter = "all";
+  function computeQuestionGroups(){
+    var artworksForQ = questionsClassFilter==="all" ? artworksCache.slice() : artworksCache.filter(function(a){ return classId(a.grade,a.classNum)===questionsClassFilter; });
+    var artMap = {};
+    artworksForQ.forEach(function(a){ artMap[a.id] = a; });
+    var qResponses = responsesCache.filter(function(r){ return artMap[r.artworkId] && r.critique && r.critique.trim(); });
+
+    var groups = {}; // classKey -> {label, grade, classNum, items:[]}
+    qResponses.forEach(function(r){
+      var a = artMap[r.artworkId];
+      var ck = classId(a.grade, a.classNum);
+      groups[ck] = groups[ck] || { label: classLabel(a.grade,a.classNum), grade:a.grade, classNum:a.classNum, items: [] };
+      groups[ck].items.push({ a:a, r:r });
+    });
+    var sortedKeys = Object.keys(groups).sort(function(x,y){ return (groups[x].grade-groups[y].grade) || (groups[x].classNum-groups[y].classNum); });
+    sortedKeys.forEach(function(ck){ groups[ck].items.sort(function(x,y){ return (y.r.createdAt||"").localeCompare(x.r.createdAt||""); }); });
+    return { groups: groups, sortedKeys: sortedKeys };
+  }
+  function questionItemHtml(it){
+    var a = it.a, r = it.r;
+    var d = r.createdAt ? new Date(r.createdAt) : null;
+    var ds = d ? (d.getMonth()+1)+"."+d.getDate() : "";
+    return '<div class="qview-item">' +
+      '<div class="qview-thumb">' + (a.imageData ? '<img src="'+a.imageData+'" alt="">' : '🖼️') + '</div>' +
+      '<div class="qview-body">' +
+        '<div class="qview-meta">'+esc(r.viewerNickname)+' → <b>'+esc(a.title)+'</b> ('+esc(a.authorNickname)+'의 작품) · '+ds+'</div>' +
+        '<div class="qview-question">'+esc(r.critique)+'</div>' +
+      '</div>' +
+    '</div>';
+  }
+  function renderQuestionsFilters(){
+    var wrap = $("#questionsClassFilter");
+    if(!wrap) return;
+    var classes = classListFromCache();
+    var html = '<button class="seg-btn ' + (questionsClassFilter==="all"?"active":"") + '" data-c="all">전체 반</button>';
+    classes.forEach(function(c){
+      html += '<button class="seg-btn ' + (questionsClassFilter===c.id?"active":"") + '" data-c="' + c.id + '">' + c.label + '</button>';
+    });
+    wrap.innerHTML = html;
+    $all("#questionsClassFilter .seg-btn").forEach(function(b){
+      b.addEventListener("click", function(){ questionsClassFilter = b.dataset.c; renderQuestionsView(); });
+    });
+  }
+  function renderQuestionsView(){
+    var container = $("#questionsContent");
+    if(!container) return;
+    renderQuestionsFilters();
+    var res = computeQuestionGroups();
+    var groups = res.groups, sortedKeys = res.sortedKeys;
+
+    if(!sortedKeys.length){
+      container.innerHTML = '<p class="empty-note">아직 학생들이 남긴 질문이 없어요. (위에서 반 필터를 바꿔보셔도 좋아요)</p>';
+      return;
+    }
+
+    container.innerHTML = sortedKeys.map(function(ck){
+      var g = groups[ck];
+      var itemsHtml = g.items.map(questionItemHtml).join("");
+      return '<div class="qview-class-header">'+esc(g.label)+' · 질문 '+g.items.length+'개</div>' + itemsHtml;
+    }).join("");
+  }
+  var btnPrintQuestions = $("#btnPrintQuestions");
+  if(btnPrintQuestions){
+    btnPrintQuestions.addEventListener("click", function(){
+      var res = computeQuestionGroups();
+      var groups = res.groups, sortedKeys = res.sortedKeys;
+      if(!sortedKeys.length){ toast("인쇄할 질문이 없어요. 반 필터를 확인해 주세요."); return; }
+      var titleLabel = questionsClassFilter==="all" ? "전체 반" : (groups[sortedKeys[0]] ? groups[sortedKeys[0]].label : "");
+      var html = sortedKeys.map(function(ck, gi){
+        var g = groups[ck];
+        var itemsHtml = g.items.map(questionItemHtml).join("");
+        return '<div class="qview-class-header' + (gi===0 ? "" : " bp-page-break") + '">'+esc(g.label)+' · 질문 '+g.items.length+'개</div>' + itemsHtml;
+      }).join("");
+      $("#questionsPrintContent").innerHTML = '<h2 style="font-family:var(--font-display,inherit);margin-bottom:6px;">반별 질문 모아보기 — ' + esc(titleLabel) + '</h2>' + html;
+      $("#questionsPrintArea").style.display = "block";
+      setTimeout(function(){ window.print(); }, 60);
+    });
+  }
+
   /* ---------------- 데이터 구독 ---------------- */
   function docListFromSnap(snap){
     return snap.docs.map(function(d){ var body = d.data() || {}; body.id = d.id; return body; });
@@ -1950,6 +2069,7 @@
       if(currentArtworkId && document.querySelector('[data-view="artwork"]').classList.contains("active")) openArtwork(currentArtworkId);
       if(document.querySelector('[data-view="dash"]').classList.contains("active")) renderDashboard();
       if(document.querySelector('[data-view="register"]').classList.contains("active") && registerMode !== "edit") renderRegisterView();
+      if(document.querySelector('[data-view="questions"]').classList.contains("active")) renderQuestionsView();
     }, function(err){ console.error("artworks", err); });
 
     db.collection("settings").doc("app").onSnapshot(function(doc){
@@ -1991,6 +2111,7 @@
       if(document.querySelector('[data-view="hof"]').classList.contains("active")) renderHallOfFame();
       if(currentArtworkId && document.querySelector('[data-view="artwork"]').classList.contains("active")) openArtwork(currentArtworkId);
       if(document.querySelector('[data-view="dash"]').classList.contains("active")) renderDashboard();
+      if(document.querySelector('[data-view="questions"]').classList.contains("active")) renderQuestionsView();
     }, function(err){ console.error("responses", err); });
 
     db.collection("reflections").limit(1000).onSnapshot(function(snap){
