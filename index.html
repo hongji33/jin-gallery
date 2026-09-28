@@ -544,7 +544,8 @@
         <h2>내 작품 올리기</h2>
         <p class="desc">작품 사진과 소개, 그리고 감상자에게 던질 퀴즈 2가지를 등록하세요.</p>
       </div>
-      <div class="grid cols-2">
+      <div id="registerViewWrap" style="display:none;"></div>
+      <div class="grid cols-2" id="registerNewWrap">
         <div class="card">
           <div class="field">
             <label>작품 이미지</label>
@@ -554,6 +555,7 @@
           <div class="field"><label>사용한 재료·기법</label><input type="text" id="inMedium" maxlength="30" placeholder="예: 한지에 채색, 아크릴 물감"></div>
           <div class="field"><label>작가의 작품 소개</label><textarea id="inDesc" maxlength="300" placeholder="작품에 담긴 이야기나 표현 의도를 내가 직접 소개해 주세요."></textarea></div>
           <div class="field"><label>AI의 작품 해설 <span style="font-weight:400;color:var(--ink-soft);font-size:11.5px;">(AI 챗봇에게 물어본 해설을 복사해서 붙여넣어요)</span></label><textarea id="inAiDesc" maxlength="600" placeholder="AI 챗봇이 해준 작품 해설을 여기에 붙여넣어 주세요."></textarea></div>
+          <div class="field" style="margin-bottom:4px;"><label>감상 퀴즈 2가지</label><p class="empty-note" style="padding:0;text-align:left;font-size:12px;">내 작품에 대해 퀴즈를 내보아요. 감상한 친구들이 내 작품을 더 깊이 이해할 수 있도록 질문을 만들어 보세요.</p></div>
           <div id="inQuizBuilder"></div>
           <button class="btn btn-primary" id="btnSubmitArt" style="width:100%">작품 등록하고 QR 발급받기</button>
           <p class="empty-note" id="registerHint" style="padding:10px 0 0;text-align:left;"></p>
@@ -620,7 +622,7 @@
       <div class="grid cols-2" style="margin-top:16px;align-items:start;">
         <div class="card">
           <h3 style="font-size:14px;margin-bottom:2px;">🎨 활동(프로젝트) 관리</h3>
-          <p class="empty-note" style="text-align:left;padding:0 0 8px;font-size:11.5px;">새 활동 이름을 추가하면 [반 선택] 탭 목록 맨 위에 나타나요.</p>
+          <p class="empty-note" style="text-align:left;padding:0 0 8px;font-size:11.5px;">새 활동 이름을 추가하면 [로그인하기] 탭 목록 맨 위에 나타나요.</p>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
             <input type="text" id="inActivityName" maxlength="20" placeholder="예: 민화 그리기" style="flex:1;min-width:110px;">
             <button class="btn btn-primary" id="btnAddActivity" style="padding:8px 14px;font-size:12.5px;">➕ 추가</button>
@@ -776,6 +778,7 @@
     if(name === "gallery"){ renderGalleryFilters(); renderGallery(); }
     if(name === "hof") renderHallOfFame();
     if(name === "pledge"){ renderPledgeFilters(); renderPledges(); }
+    if(name === "register"){ registerMode = "auto"; renderRegisterView(); }
   }
   var TEACHER_PIN = "1234"; // Firestore settings/app 문서에 값이 있으면 그 값으로 덮어씌워짐
   function isTeacherUnlocked(){ try{ return sessionStorage.getItem("jpmp_teacher_ok") === "1"; }catch(e){ return false; } }
@@ -1153,7 +1156,7 @@
 
   $("#btnSubmitArt").addEventListener("click", function(){
     var hint = $("#registerHint");
-    if(!myProfile){ hint.textContent = "먼저 [반 선택] 탭에서 프로필을 등록해 주세요."; return; }
+    if(!myProfile){ hint.textContent = "먼저 [로그인하기] 탭에서 프로필을 등록해 주세요."; return; }
     var title = $("#inTitle").value.trim();
     var medium = $("#inMedium").value.trim();
     var desc = $("#inDesc").value.trim();
@@ -1179,11 +1182,115 @@
       $("#inTitle").value=""; $("#inMedium").value=""; $("#inDesc").value=""; $("#inAiDesc").value="";
       renderQuizBuilder(inQuizBuilderEl, "in", []);
       $("#inImage").value=""; $("#imgPreview").innerHTML='<span class="ph">🖼️</span>'; pendingImageData=null;
+      registerMode = "view";
+      renderRegisterView();
     }).catch(function(err){
       console.error(err);
       hint.textContent = "등록 실패: " + (err && err.code === "quota_exceeded" ? "저장 공간이 가득 찼어요." : "잠시 후 다시 시도해 주세요.");
     });
   });
+
+  /* ---------------- 작품 등록 페이지: 이미 등록한 작품이 있으면 보기/수정 모드로 ---------------- */
+  var registerMode = "auto"; // "auto" | "new" | "view" | "edit"
+  function myArtwork(){
+    if(!myProfile) return null;
+    return artworksCache.filter(function(a){ return a.authorId === myProfile.id; })[0] || null;
+  }
+  function renderRegisterView(){
+    var newWrap = $("#registerNewWrap"), viewWrap = $("#registerViewWrap");
+    if(!newWrap || !viewWrap) return;
+    var existing = myArtwork();
+    if(!existing){
+      registerMode = "new";
+      newWrap.style.display = "grid";
+      viewWrap.style.display = "none";
+      return;
+    }
+    if(registerMode === "auto") registerMode = "view";
+    newWrap.style.display = "none";
+    viewWrap.style.display = "block";
+    if(registerMode === "edit"){
+      renderRegisterEditMode(viewWrap, existing);
+    } else {
+      renderRegisterViewMode(viewWrap, existing);
+    }
+  }
+  function renderRegisterViewMode(container, a){
+    var sc = artworkScore(a.id); var b = badgeFor(sc.total);
+    container.innerHTML =
+      '<div class="card">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">' +
+          '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><span class="badge '+b.cls+'">'+b.label+'</span><span class="plaque">이미 등록한 내 작품이에요</span></div>' +
+          '<div style="display:flex;gap:8px;">' +
+            '<button class="btn btn-ghost" id="btnRegEdit">✏️ 수정하기</button>' +
+            '<button class="btn btn-ghost" id="btnRegDelete" style="color:#D14D66;">🗑️ 삭제하기</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="grid cols-2">' +
+          '<div class="art-frame" style="border-radius:var(--radius-m);border:1px solid var(--border);">' + (a.imageData ? '<img src="'+a.imageData+'" alt="">' : '<span class="ph">🖼️</span>') + '</div>' +
+          '<div>' +
+            '<div class="field"><label>작품 제목</label><p style="color:var(--ink);font-size:15px;margin:2px 0 0;">'+esc(a.title)+'</p></div>' +
+            '<div class="field"><label>사용한 재료·기법</label><p style="color:var(--ink-soft);font-size:13.5px;margin:2px 0 0;">'+esc(a.medium||"-")+'</p></div>' +
+            '<div class="field"><label>작가의 작품 소개</label><p style="color:var(--ink-soft);font-size:13.5px;white-space:pre-wrap;margin:2px 0 0;">'+esc(a.desc||"-")+'</p></div>' +
+            (a.aiDesc ? '<div class="field"><label>AI의 작품 해설</label><p style="color:var(--ink-soft);font-size:13.5px;white-space:pre-wrap;margin:2px 0 0;">'+esc(a.aiDesc)+'</p></div>' : '') +
+            (a.quiz||[]).map(function(q,i){
+              var qq = normalizeQuizQ(q);
+              var extra = qq.type==="mc" ? ' <span style="color:var(--ink-soft);font-size:12px;">(객관식 · 정답: '+esc((qq.choices||[])[qq.correctIndex]||"")+')</span>' : ' <span style="color:var(--ink-soft);font-size:12px;">(주관식)</span>';
+              return '<div class="field"><label>퀴즈 '+(i+1)+'</label><p style="color:var(--ink-soft);font-size:13.5px;margin:2px 0 0;">'+esc(qq.text)+extra+'</p></div>';
+            }).join("") +
+          '</div>' +
+        '</div>' +
+        '<p class="empty-note" style="text-align:left;padding-top:10px;">💬 지금까지 받은 감상평 '+sc.count+'개 · 총 '+sc.total+'점</p>' +
+      '</div>';
+    $("#btnRegEdit").addEventListener("click", function(){ registerMode = "edit"; renderRegisterView(); });
+    $("#btnRegDelete").addEventListener("click", function(){ deleteArtwork(a); });
+  }
+  function renderRegisterEditMode(container, a){
+    container.innerHTML =
+      '<div class="card">' +
+        '<h3 style="font-size:15px;margin-bottom:12px;">✏️ 작품 정보 수정</h3>' +
+        '<div class="grid cols-2">' +
+          '<div>' +
+            '<div class="field"><label>작품 제목</label><input type="text" id="regEditTitle" maxlength="30" value="'+esc(a.title||"")+'"></div>' +
+            '<div class="field"><label>사용한 재료·기법</label><input type="text" id="regEditMedium" maxlength="30" value="'+esc(a.medium||"")+'"></div>' +
+            '<div class="field"><label>작가의 작품 소개</label><textarea id="regEditDesc" maxlength="300">'+esc(a.desc||"")+'</textarea></div>' +
+            '<div class="field"><label>AI의 작품 해설</label><textarea id="regEditAiDesc" maxlength="600">'+esc(a.aiDesc||"")+'</textarea></div>' +
+            '<div class="field" style="margin-bottom:4px;"><label>감상 퀴즈 2가지</label><p class="empty-note" style="padding:0;text-align:left;font-size:12px;">내 작품에 대해 퀴즈를 내보아요. 감상한 친구들이 내 작품을 더 깊이 이해할 수 있도록 질문을 만들어 보세요.</p></div>' +
+            '<div id="regEditQuizBuilder"></div>' +
+            '<p class="empty-note" style="text-align:left;padding:0 0 10px;">사진은 여기서 바꿀 수 없어요. 사진을 바꾸려면 작품을 삭제하고 새로 등록해 주세요.</p>' +
+            '<div style="display:flex;gap:8px;">' +
+              '<button class="btn btn-primary" id="btnRegSaveEdit">저장하기</button>' +
+              '<button class="btn btn-ghost" id="btnRegCancelEdit">취소</button>' +
+            '</div>' +
+            '<p class="empty-note" id="regEditHint" style="text-align:left;padding:8px 0 0;"></p>' +
+          '</div>' +
+          '<div class="art-frame" style="border-radius:var(--radius-m);border:1px solid var(--border);">' + (a.imageData ? '<img src="'+a.imageData+'" alt="">' : '<span class="ph">🖼️</span>') + '</div>' +
+        '</div>' +
+      '</div>';
+    var qb = $("#regEditQuizBuilder");
+    renderQuizBuilder(qb, "regEdit", a.quiz || []);
+    $("#btnRegCancelEdit").addEventListener("click", function(){ registerMode = "view"; renderRegisterView(); });
+    $("#btnRegSaveEdit").addEventListener("click", function(){
+      var title = $("#regEditTitle").value.trim();
+      var medium = $("#regEditMedium").value.trim();
+      var desc = $("#regEditDesc").value.trim();
+      var aiDesc = $("#regEditAiDesc").value.trim();
+      var quiz = readQuizFromBuilder(qb, "regEdit");
+      var hint = $("#regEditHint");
+      if(!title){ hint.textContent = "작품 제목을 입력해 주세요."; return; }
+      if(quiz.some(function(q){ return !q.ok; })){ hint.textContent = "퀴즈 2가지를 모두 입력해 주세요. 객관식은 질문과 보기 2개 이상, 정답 선택까지 필요해요."; return; }
+      if(!db){ hint.textContent = "데이터 연결을 확인하고 있어요."; return; }
+      hint.textContent = "저장 중…";
+      db.doc("artworks/" + a.id).update({
+        title: title, medium: medium, desc: desc, aiDesc: aiDesc,
+        quiz: quiz.map(function(q){ return q.type==="mc" ? {type:"mc",text:q.text,choices:q.choices,correctIndex:q.correctIndex} : {type:"text",text:q.text}; })
+      }).then(function(){
+        toast("작품 정보를 수정했어요.");
+        registerMode = "view";
+        renderRegisterView();
+      }).catch(function(err){ console.error(err); hint.textContent = "저장 중 오류가 발생했어요."; });
+    });
+  }
 
   /* ---------------- 갤러리 ---------------- */
   function artworkScore(artId){
@@ -1220,7 +1327,7 @@
   function renderGallery(){
     var grid = $("#galleryGrid");
     if(!myProfile){
-      grid.innerHTML = '<p class="empty-note">[반 선택] 탭에서 먼저 프로필을 등록하면 우리 반 작품을 볼 수 있어요.</p>';
+      grid.innerHTML = '<p class="empty-note">[로그인하기] 탭에서 먼저 프로필을 등록하면 우리 반 작품을 볼 수 있어요.</p>';
       return;
     }
     var myClassId = classId(myProfile.grade, myProfile.classNum);
@@ -1307,7 +1414,7 @@
     } else if(teacherMode){
       quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">교사 열람 모드예요. 아래 감상평에서 학생들의 퀴즈 답변과 질문을 모두 볼 수 있어요.</div>';
     } else if(!myProfile){
-      quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">퀴즈에 참여하려면 먼저 [반 선택] 탭에서 프로필을 등록해 주세요.</div>';
+      quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">퀴즈에 참여하려면 먼저 [로그인하기] 탭에서 프로필을 등록해 주세요.</div>';
     } else {
       quizHtml = a.quiz.map(function(qRaw,i){
         var q = normalizeQuizQ(qRaw);
@@ -1434,6 +1541,7 @@
         '<div class="field"><label>사용한 재료·기법</label><input type="text" id="editMedium" maxlength="30" value="'+esc(a.medium||"")+'"></div>' +
         '<div class="field"><label>작가의 작품 소개</label><textarea id="editDesc" maxlength="300">'+esc(a.desc||"")+'</textarea></div>' +
         '<div class="field"><label>AI의 작품 해설</label><textarea id="editAiDesc" maxlength="600">'+esc(a.aiDesc||"")+'</textarea></div>' +
+        '<div class="field" style="margin-bottom:4px;"><label>감상 퀴즈 2가지</label><p class="empty-note" style="padding:0;text-align:left;font-size:12px;">내 작품에 대해 퀴즈를 내보아요. 감상한 친구들이 내 작품을 더 깊이 이해할 수 있도록 질문을 만들어 보세요.</p></div>' +
         '<div id="editQuizBuilder"></div>' +
         '<p class="empty-note" style="text-align:left;padding:0 0 10px;">사진은 여기서 바꿀 수 없어요. 사진을 바꾸려면 작품을 삭제하고 새로 등록해 주세요.</p>' +
         '<div style="display:flex;gap:8px;">' +
@@ -1496,7 +1604,7 @@
 
   /* 좋아요 토글: 다른 학생의 감상평에 +1P (본인 글은 좋아요 불가) */
   function toggleLike(r, btn){
-    if(!myProfile){ toast("먼저 [반 선택] 탭에서 프로필을 등록해 주세요."); return; }
+    if(!myProfile){ toast("먼저 [로그인하기] 탭에서 프로필을 등록해 주세요."); return; }
     if(!db){ toast("데이터 연결을 확인하고 있어요."); return; }
     if(r.viewerId === myProfile.id){ toast("내 감상평에는 좋아요를 누를 수 없어요."); return; }
     if(btn){ if(btn.disabled) return; btn.disabled = true; } /* 연속 클릭으로 중복 처리되지 않도록 잠금 */
@@ -1559,7 +1667,12 @@
       return db.doc("artworks/" + a.id).delete();
     }).then(function(){
       toast("작품을 삭제했어요.");
-      switchTab(artworkReturnTab);
+      if(document.querySelector('[data-view="register"]').classList.contains("active")){
+        registerMode = "new";
+        renderRegisterView();
+      } else {
+        switchTab(artworkReturnTab);
+      }
     }).catch(function(err){ console.error(err); toast("삭제 중 오류가 발생했어요."); });
   }
 
@@ -1635,7 +1748,7 @@
 
   $("#btnSavePledge").addEventListener("click", function(){
     var hint = $("#pledgeHint");
-    if(!myProfile){ hint.textContent = "먼저 [반 선택] 탭에서 프로필을 등록해 주세요."; return; }
+    if(!myProfile){ hint.textContent = "먼저 [로그인하기] 탭에서 프로필을 등록해 주세요."; return; }
     var text = $("#inPledge").value.trim();
     if(!text){ hint.textContent = "다짐을 적어 주세요."; return; }
     if(!db){ hint.textContent = "데이터 연결을 확인하고 있어요."; return; }
@@ -1823,6 +1936,7 @@
       if(document.querySelector('[data-view="hof"]').classList.contains("active")) renderHallOfFame();
       if(currentArtworkId && document.querySelector('[data-view="artwork"]').classList.contains("active")) openArtwork(currentArtworkId);
       if(document.querySelector('[data-view="dash"]').classList.contains("active")) renderDashboard();
+      if(document.querySelector('[data-view="register"]').classList.contains("active") && registerMode !== "edit") renderRegisterView();
     }, function(err){ console.error("artworks", err); });
 
     db.collection("settings").doc("app").onSnapshot(function(doc){
