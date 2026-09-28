@@ -926,7 +926,10 @@
     var chip = $("#idChip");
     if(myProfile){
       var pts = getStudentDoc(myProfile.id);
-      chip.innerHTML = "<b>" + esc(myProfile.nickname) + "</b>" + classLabel(myProfile.grade, myProfile.classNum) + " · " + myProfile.number + "번" + (myProfile.activityName ? " · " + esc(myProfile.activityName) : "") + " · " + (pts ? (pts.points||0)+(pts.authorPoints||0) : 0) + "P";
+      var total = pts ? (pts.points||0)+(pts.authorPoints||0) : 0;
+      chip.innerHTML = "<b>" + esc(myProfile.nickname) + " · " + total + "P</b>" +
+        "<div>" + classLabel(myProfile.grade, myProfile.classNum) + " · " + myProfile.number + "번</div>" +
+        (myProfile.activityName ? "<div style='margin-top:2px;'>" + esc(myProfile.activityName) + "</div>" : "");
     } else {
       chip.innerHTML = "<b>미등록 감상자</b>로그인해 주세요.";
     }
