@@ -502,6 +502,10 @@
             <label>번호</label>
             <input type="number" id="inNumber" min="1" max="40" placeholder="예: 15">
           </div>
+          <div class="field" id="classPinField" style="display:none;">
+            <label>우리 반 비밀번호</label>
+            <input type="password" id="inClassPin" inputmode="numeric" maxlength="4" placeholder="선생님이 알려준 4자리">
+          </div>
           <button class="btn btn-primary" id="btnEnterClass" style="width:100%">입장하기</button>
           <p class="empty-note" id="stage1Hint" style="padding:10px 0 0;text-align:left;"></p>
         </div>
@@ -681,6 +685,26 @@
           <p class="empty-note" id="pinChangeHint" style="padding:8px 0 0;text-align:left;font-size:12px;"></p>
         </div>
       </div>
+      <div class="card" style="margin-top:16px;">
+        <h3 style="font-size:15px;margin-bottom:2px;">🔒 반별 비밀번호 (다른 반 장난 입장 방지)</h3>
+        <p class="empty-note" style="text-align:left;padding:0 0 8px;">반에 비밀번호를 설정하면, 그 반으로 로그인할 때 비밀번호를 입력해야 해요. 학생이 장난으로 다른 반에 들어가는 걸 막을 수 있어요. 비워두면 그 반은 비밀번호 없이 그대로 들어갈 수 있어요.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+          <label style="font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;">학년
+            <select id="classPinGrade" style="padding:8px;border:1px solid var(--border);border-radius:8px;">
+              <option value="1">1학년</option><option value="2">2학년</option><option value="3" selected>3학년</option>
+            </select>
+          </label>
+          <label style="font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;">반
+            <input type="number" id="classPinClass" min="1" max="20" value="1" style="width:72px;padding:8px;border:1px solid var(--border);border-radius:8px;">
+          </label>
+          <label style="font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;">비밀번호(4자리)
+            <input type="text" id="classPinValue" inputmode="numeric" maxlength="4" placeholder="예: 1234" style="width:110px;padding:8px;border:1px solid var(--border);border-radius:8px;">
+          </label>
+          <button class="btn btn-primary" id="btnSetClassPin" style="padding:8px 14px;font-size:12.5px;">저장</button>
+        </div>
+        <p class="empty-note" id="classPinHint" style="padding:6px 0 0;text-align:left;font-size:11.5px;"></p>
+        <div id="classPinList" style="margin-top:8px;"></div>
+      </div>
     </section>
 
     <!-- 반별 질문 모아보기 -->
@@ -843,7 +867,7 @@
     $all(".view").forEach(function(v){ v.classList.toggle("active", v.dataset.view === name); });
     $all(".tab-btn").forEach(function(b){ b.classList.toggle("active", b.dataset.tab === name); });
     if(!opts.keepScroll) window.scrollTo({top:0, behavior:"instant"});
-    if(name === "setup") renderActivityOptions();
+    if(name === "setup"){ renderActivityOptions(); updateClassPinFieldVisibility(); }
     if(name === "dash") renderDashboard();
     if(name === "gallery"){ renderGalleryFilters(); renderGallery(); }
     if(name === "hof") renderHallOfFame();
@@ -852,6 +876,8 @@
     if(name === "questions") renderQuestionsView();
   }
   var TEACHER_PIN = "1234"; // Firestore settings/app 문서에 값이 있으면 그 값으로 덮어씌워짐
+  var classPinsCache = {}; // { "3-1": "1234", ... } 반별 비밀번호. 설정된 반만 입장 시 비밀번호를 물어봐요.
+  function classPinFor(grade, classNum){ return classPinsCache[classId(grade, classNum)] || ""; }
   function isTeacherUnlocked(){ try{ return sessionStorage.getItem("jpmp_teacher_ok") === "1"; }catch(e){ return false; } }
   function setTeacherUnlocked(){ try{ sessionStorage.setItem("jpmp_teacher_ok", "1"); }catch(e){} }
 
@@ -905,6 +931,57 @@
     });
   });
 
+  /* ---------------- 반별 비밀번호 관리 ----------------
+     settings/app 문서의 classPins 필드에 { "학년-반": "비밀번호" } 형태로 저장해요.
+     로그인 1단계에서 그 반을 고르면 비밀번호 입력칸이 나타나고, 맞아야만 입장할 수 있어요. */
+  function renderClassPinManage(){
+    var wrap = $("#classPinList");
+    if(!wrap) return;
+    var keys = Object.keys(classPinsCache).sort();
+    if(!keys.length){ wrap.innerHTML = '<p class="empty-note" style="padding:8px 0 0;font-size:12px;">아직 비밀번호를 설정한 반이 없어요. 모든 반이 비밀번호 없이 입장할 수 있어요.</p>'; return; }
+    wrap.innerHTML = keys.map(function(ck){
+      var parts = ck.split("-");
+      var label = classLabel(parseInt(parts[0],10), parseInt(parts[1],10));
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 9px;border:1px solid var(--border);border-radius:var(--radius-s);margin-bottom:5px;background:var(--card-bg);font-size:12.5px;">' +
+        '<span>' + esc(label) + ' · 비밀번호 <b>' + esc(classPinsCache[ck]) + '</b></span>' +
+        '<button class="btn btn-ghost" data-del-classpin="' + ck + '" style="padding:3px 9px;font-size:11px;flex-shrink:0;">삭제</button>' +
+      '</div>';
+    }).join("");
+    $all("#classPinList [data-del-classpin]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        if(!db) return;
+        var field = "classPins." + btn.dataset.delClasspin;
+        var update = {}; update[field] = firebase.firestore.FieldValue.delete();
+        db.collection("settings").doc("app").update(update).then(function(){
+          toast("반 비밀번호를 삭제했어요. 이제 이 반은 비밀번호 없이 입장할 수 있어요.");
+        }).catch(function(err){ console.error(err); toast("삭제 중 오류가 발생했어요."); });
+      });
+    });
+  }
+  var setClassPinBtn = $("#btnSetClassPin");
+  if(setClassPinBtn){
+    setClassPinBtn.addEventListener("click", function(){
+      var hint = $("#classPinHint");
+      var grade = parseInt($("#classPinGrade").value,10);
+      var classNum = parseInt($("#classPinClass").value,10);
+      var pin = $("#classPinValue").value.trim();
+      if(!classNum || classNum<1){ hint.textContent = "반을 입력해 주세요."; return; }
+      if(!/^\d{4}$/.test(pin)){ hint.textContent = "비밀번호는 숫자 4자리로 입력해 주세요."; return; }
+      if(!db){ hint.textContent = "데이터 연결을 확인하고 있어요."; return; }
+      hint.textContent = "저장 중…";
+      var ck = classId(grade, classNum);
+      var update = {}; update["classPins." + ck] = pin;
+      /* settings/app 문서가 아직 없을 수도 있으니, 먼저 만들어 둔 뒤 (없으면 생성, 있으면 그대로) update()로
+         classPins 맵의 해당 반 키만 안전하게 덮어써요. (set을 점(.) 경로로 바로 쓰면 중첩 병합이 보장되지 않아요) */
+      db.collection("settings").doc("app").set({}, {merge:true}).then(function(){
+        return db.collection("settings").doc("app").update(update);
+      }).then(function(){
+        hint.textContent = classLabel(grade,classNum) + "의 비밀번호를 저장했어요.";
+        $("#classPinValue").value = "";
+      }).catch(function(err){ console.error(err); hint.textContent = "저장 중 오류가 발생했어요."; });
+    });
+  }
+
   /* 작품 등록 전에도 학년·반·번호만으로 QR을 미리 만들어 인쇄하는 기능.
      작품 doc id가 studentId(학년-반-번호)로 고정되어 있어서(등록 시 db.doc(myProfile.id).set(...)),
      학생이 아직 등록하지 않았어도 같은 규칙으로 미리 QR을 만들어두면 나중에 그대로 연결돼요. */
@@ -945,6 +1022,19 @@
     for(var i=1;i<=10;i++){ var o=document.createElement("option"); o.value=i; o.textContent=i+"반"; sel.appendChild(o); }
   }
   populateClassSelect();
+
+  /* 학년·반을 고를 때마다, 그 반에 비밀번호가 설정돼 있으면 비밀번호 입력칸을 보여줘요. */
+  function updateClassPinFieldVisibility(){
+    var field = $("#classPinField");
+    if(!field) return;
+    var grade = parseInt($("#inGrade").value,10);
+    var classNum = parseInt($("#inClass").value,10);
+    var need = !!classPinFor(grade, classNum);
+    field.style.display = need ? "block" : "none";
+    if(!need) $("#inClassPin").value = "";
+  }
+  $("#inGrade").addEventListener("change", updateClassPinFieldVisibility);
+  $("#inClass").addEventListener("change", updateClassPinFieldVisibility);
 
   /* ---------------- 활동(프로젝트) ---------------- */
   function activityNameById(id){
@@ -1105,6 +1195,11 @@
     var hint = $("#stage1Hint");
     if(!activityId){ hint.textContent = "활동을 선택해 주세요. (목록에 없으면 선생님께 추가를 요청하세요)"; return; }
     if(!number || number<1){ hint.textContent = "번호를 입력해 주세요."; return; }
+    var needPin = classPinFor(grade, classNum);
+    if(needPin){
+      var enteredPin = $("#inClassPin").value.trim();
+      if(enteredPin !== needPin){ hint.textContent = "우리 반 비밀번호가 올바르지 않아요. 선생님께 확인해 주세요."; return; }
+    }
     hint.textContent = "";
     pendingLogin = { grade:grade, classNum:classNum, number:number, activityId:activityId };
     var existing = getStudentDoc(studentId(grade,classNum,number));
@@ -2029,6 +2124,7 @@
   function renderDashboard(){
     renderDashFilters();
     renderActivityManage();
+    renderClassPinManage();
     var studentsForDash = dashClassFilter==="all" ? studentsCache : studentsCache.filter(function(s){ return classId(s.grade,s.classNum)===dashClassFilter; });
     var artworksForDash = dashClassFilter==="all" ? artworksCache : artworksCache.filter(function(a){ return classId(a.grade,a.classNum)===dashClassFilter; });
     if(dashActivityFilter !== "all"){
@@ -2223,6 +2319,9 @@
       if(doc.exists){
         var d = doc.data() || {};
         if(d.teacherPin && /^\d{4}$/.test(d.teacherPin)) TEACHER_PIN = d.teacherPin;
+        classPinsCache = d.classPins || {};
+        updateClassPinFieldVisibility();
+        if(document.querySelector('[data-view="dash"]').classList.contains("active")) renderClassPinManage();
       }
     }, function(err){ console.error("settings", err); });
 
