@@ -280,6 +280,11 @@
   .qview-question{font-size:13.5px;color:var(--ink);margin-top:4px;font-weight:600;}
   .qview-qa{font-size:12.5px;color:var(--ink-soft);margin:2px 0;line-height:1.5;}
   .qview-qa b{color:var(--ink);}
+  .qview-resp{margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);}
+  .qview-resp:first-of-type{margin-top:10px;}
+  .qview-ans{font-size:12.5px;color:var(--ink-soft);margin:1px 0;line-height:1.5;}
+  .qview-ans b{color:var(--ink);}
+  .qview-empty{font-size:12px;color:var(--ink-soft);font-style:italic;margin-top:8px;}
 
   .label-card{
     display:inline-block;text-align:left;border:2px solid #FF9FB8;border-radius:14px;
@@ -641,7 +646,7 @@
       </div>
       <div class="card" style="margin-top:16px;">
         <h3 style="font-size:15px;margin-bottom:10px;">❓ 반별 질문 모아보기</h3>
-        <p class="empty-note" style="text-align:left;padding:0 0 8px;">학생들의 감상 퀴즈 답변 2개와 "궁금한 점" 질문을 작품 사진과 함께 반별로 모아서 볼 수 있어요.</p>
+        <p class="empty-note" style="text-align:left;padding:0 0 8px;">작품에 등록된 퀴즈 질문 2개와 "궁금한 점"을 작품 사진과 함께 반별로 모아서 볼 수 있어요. 아직 감상한 친구가 없어도 퀴즈 질문은 바로 보여요.</p>
         <button class="btn btn-primary" id="btnOpenQuestions" style="width:100%;">❓ 질문 모아보기 열기</button>
       </div>
       <div class="grid cols-2" style="margin-top:16px;align-items:start;">
@@ -671,7 +676,7 @@
       <div class="page-head">
         <span class="eyebrow">Teacher · Questions</span>
         <h2>반별 질문 모아보기</h2>
-        <p class="desc">학생들의 감상 퀴즈 답변 2개와 "궁금한 점" 질문을 작품 사진과 함께 반별로 모아서 볼 수 있어요.</p>
+        <p class="desc">작품에 등록된 퀴즈 질문 2개와 "궁금한 점"을 작품 사진과 함께 반별로 모아서 볼 수 있어요. 아직 감상한 친구가 없어도 퀴즈 질문은 바로 보여요.</p>
       </div>
       <div class="segmented" id="questionsClassFilter" style="margin-bottom:10px;"></div>
       <button class="btn btn-primary" id="btnPrintQuestions" style="margin-bottom:14px;">🖨️ 지금 화면 인쇄하기</button>
@@ -2036,38 +2041,54 @@
 
   /* ---------------- 반별 질문 모아보기 ---------------- */
   var questionsClassFilter = "all";
+  /* 질문(퀴즈)이 등록된 모든 작품을 반별로 모아요. 학생이 아직 아무도 감상하지 않아
+     답변이 하나도 없는 작품도, 퀴즈만 저장돼 있으면 빠짐없이 보여요. */
   function computeQuestionGroups(){
     var artworksForQ = questionsClassFilter==="all" ? artworksCache.slice() : artworksCache.filter(function(a){ return classId(a.grade,a.classNum)===questionsClassFilter; });
-    var artMap = {};
-    artworksForQ.forEach(function(a){ artMap[a.id] = a; });
-    var qResponses = responsesCache.filter(function(r){ return artMap[r.artworkId] && r.critique && r.critique.trim(); });
+    artworksForQ = artworksForQ.filter(function(a){ return a.quiz && a.quiz.length; });
 
     var groups = {}; // classKey -> {label, grade, classNum, items:[]}
-    qResponses.forEach(function(r){
-      var a = artMap[r.artworkId];
+    artworksForQ.forEach(function(a){
       var ck = classId(a.grade, a.classNum);
       groups[ck] = groups[ck] || { label: classLabel(a.grade,a.classNum), grade:a.grade, classNum:a.classNum, items: [] };
-      groups[ck].items.push({ a:a, r:r });
+      var responses = responsesCache.filter(function(r){ return r.artworkId === a.id; })
+        .sort(function(x,y){ return (y.createdAt||"").localeCompare(x.createdAt||""); });
+      groups[ck].items.push({ a:a, responses:responses });
     });
     var sortedKeys = Object.keys(groups).sort(function(x,y){ return (groups[x].grade-groups[y].grade) || (groups[x].classNum-groups[y].classNum); });
-    sortedKeys.forEach(function(ck){ groups[ck].items.sort(function(x,y){ return (y.r.createdAt||"").localeCompare(x.r.createdAt||""); }); });
+    sortedKeys.forEach(function(ck){ groups[ck].items.sort(function(x,y){ return (x.a.createdAt||"").localeCompare(y.a.createdAt||""); }); });
     return { groups: groups, sortedKeys: sortedKeys };
   }
   function questionItemHtml(it){
-    var a = it.a, r = it.r;
-    var d = r.createdAt ? new Date(r.createdAt) : null;
-    var ds = d ? (d.getMonth()+1)+"."+d.getDate() : "";
+    var a = it.a, responses = it.responses;
     var quizLines = (a.quiz||[]).map(function(qRaw,i){
       var q = normalizeQuizQ(qRaw);
-      var ans = (r.answers && r.answers[i]) ? r.answers[i] : "-";
-      return '<div class="qview-qa"><b>Q'+(i+1)+'.</b> '+esc(q.text)+' <span style="color:var(--ink-soft);">→</span> '+esc(ans)+'</div>';
+      return '<div class="qview-qa"><b>Q'+(i+1)+'.</b> '+esc(q.text)+'</div>';
     }).join("");
+    var respHtml;
+    if(responses.length){
+      respHtml = responses.map(function(r){
+        var d = r.createdAt ? new Date(r.createdAt) : null;
+        var ds = d ? (d.getMonth()+1)+"."+d.getDate() : "";
+        var answerLines = (a.quiz||[]).map(function(qRaw,i){
+          var ans = (r.answers && r.answers[i]) ? r.answers[i] : "-";
+          return '<div class="qview-ans"><b>Q'+(i+1)+' 답.</b> '+esc(ans)+'</div>';
+        }).join("");
+        return '<div class="qview-resp">' +
+          '<div class="qview-meta">'+esc(r.viewerNickname)+' · '+ds+'</div>' +
+          answerLines +
+          (r.critique ? '<div class="qview-question">💬 '+esc(r.critique)+'</div>' : '') +
+        '</div>';
+      }).join("");
+    } else {
+      respHtml = '<div class="qview-empty">아직 감상한 친구가 없어요.</div>';
+    }
     return '<div class="qview-item">' +
       '<div class="qview-thumb">' + (a.imageData ? '<img src="'+a.imageData+'" alt="">' : '🖼️') + '</div>' +
       '<div class="qview-body">' +
-        '<div class="qview-meta">'+esc(r.viewerNickname)+' → <b>'+esc(a.title)+'</b> ('+esc(a.authorNickname)+'의 작품) · '+ds+'</div>' +
+        '<div class="qview-meta"><b>'+esc(a.title)+'</b> ('+esc(a.authorNickname)+'의 작품)</div>' +
         quizLines +
-        (r.critique ? '<div class="qview-question">💬 '+esc(r.critique)+'</div>' : '') +
+        respHtml +
       '</div>' +
     '</div>';
   }
@@ -2092,14 +2113,14 @@
     var groups = res.groups, sortedKeys = res.sortedKeys;
 
     if(!sortedKeys.length){
-      container.innerHTML = '<p class="empty-note">아직 학생들이 남긴 질문이 없어요. (위에서 반 필터를 바꿔보셔도 좋아요)</p>';
+      container.innerHTML = '<p class="empty-note">아직 퀴즈가 등록된 작품이 없어요. (위에서 반 필터를 바꿔보셔도 좋아요)</p>';
       return;
     }
 
     container.innerHTML = sortedKeys.map(function(ck){
       var g = groups[ck];
       var itemsHtml = g.items.map(questionItemHtml).join("");
-      return '<div class="qview-class-header">'+esc(g.label)+' · 질문 '+g.items.length+'개</div>' + itemsHtml;
+      return '<div class="qview-class-header">'+esc(g.label)+' · 작품 '+g.items.length+'개</div>' + itemsHtml;
     }).join("");
   }
   var btnPrintQuestions = $("#btnPrintQuestions");
@@ -2107,12 +2128,12 @@
     btnPrintQuestions.addEventListener("click", function(){
       var res = computeQuestionGroups();
       var groups = res.groups, sortedKeys = res.sortedKeys;
-      if(!sortedKeys.length){ toast("인쇄할 질문이 없어요. 반 필터를 확인해 주세요."); return; }
+      if(!sortedKeys.length){ toast("인쇄할 작품이 없어요. 반 필터를 확인해 주세요."); return; }
       var titleLabel = questionsClassFilter==="all" ? "전체 반" : (groups[sortedKeys[0]] ? groups[sortedKeys[0]].label : "");
       var html = sortedKeys.map(function(ck, gi){
         var g = groups[ck];
         var itemsHtml = g.items.map(questionItemHtml).join("");
-        return '<div class="qview-class-header' + (gi===0 ? "" : " bp-page-break") + '">'+esc(g.label)+' · 질문 '+g.items.length+'개</div>' + itemsHtml;
+        return '<div class="qview-class-header' + (gi===0 ? "" : " bp-page-break") + '">'+esc(g.label)+' · 작품 '+g.items.length+'개</div>' + itemsHtml;
       }).join("");
       $("#questionsPrintContent").innerHTML = '<h2 style="font-family:var(--font-display,inherit);margin-bottom:6px;">반별 질문 모아보기 — ' + esc(titleLabel) + '</h2>' + html;
       $("#questionsPrintArea").style.display = "block";
