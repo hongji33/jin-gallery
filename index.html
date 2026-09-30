@@ -488,6 +488,7 @@
           <div class="field">
             <label>활동(프로젝트)</label>
             <select id="inActivity"><option value="">불러오는 중…</option></select>
+            <p class="empty-note" id="activityLockNote" style="display:none;padding:6px 0 0;text-align:left;font-size:11.5px;color:var(--brand,#A6352B);"></p>
           </div>
           <div class="field">
             <label>학년</label>
@@ -541,6 +542,7 @@
         <span class="eyebrow">Hall of Fame</span>
         <h2>명예의 전당</h2>
         <p class="desc">내가 등록한 활동을 기준으로, 모든 반을 통틀어 가장 높은 점수를 받은 TOP 5 작품이에요. 우리 반이 아니어도 누구나 볼 수 있어요.</p>
+        <p class="empty-note" id="hofActivityNote" style="display:none;padding:4px 0 0;text-align:left;font-size:12px;"></p>
       </div>
       <div class="card badge-legend-card">
         <div class="badge-legend-row">
@@ -637,12 +639,6 @@
         <h3 style="font-size:15px;margin-bottom:10px;">🖼️ 작품별 피드백 현황</h3>
         <p class="empty-note" style="text-align:left;padding:0 0 8px;">행을 클릭하면 작품 사진과 학생들이 남긴 감상 퀴즈 답변·질문을 모두 볼 수 있어요.</p>
         <div class="tablewrap"><table class="rank" id="artRankTable"><thead><tr><th>등급</th><th>작품</th><th>활동</th><th>반</th><th>작가</th><th>피드백 수</th><th>총점</th></tr></thead><tbody></tbody></table></div>
-      </div>
-      <div class="card" style="margin-top:16px;">
-        <h3 style="font-size:15px;margin-bottom:10px;">🖨️ 작품 QR 일괄 인쇄</h3>
-        <p class="empty-note" style="text-align:left;padding:0 0 8px;">위에서 선택한 반·활동의 학생 작품 QR을 한 번에 인쇄해서 작품 옆에 붙여두면, 친구들이 스캔해서 감상하고 퀴즈·글을 남길 수 있어요. "전체 반"을 선택하면 반이 바뀔 때마다 새 페이지에서 시작해서, 반별로 나눠 인쇄·배부하기 편해요.</p>
-        <button class="btn btn-primary" id="btnBulkPrint" style="width:100%;">🖨️ 지금 목록의 작품 QR 모아 인쇄</button>
-        <p class="empty-note" id="bulkPrintHint" style="padding:8px 0 0;text-align:left;font-size:11.5px;"></p>
       </div>
       <div class="card" style="margin-top:16px;">
         <h3 style="font-size:15px;margin-bottom:10px;">🎫 번호별 QR 미리 인쇄 (작품 등록 전)</h3>
@@ -780,6 +776,9 @@
   var db = null;
   var myProfile = null; // {id, grade, classNum, number, nickname, activityId, activityName}
   var pendingArtworkAfterSetup = null; // QR로 작품에 들어왔지만 아직 프로필이 없을 때, 등록 후 이어서 보여줄 작품 id
+  var pendingRegisterAfterSetup = false; // 활동별 등록 링크로 들어왔을 때, 로그인 완료 후 작품 등록 탭으로 바로 이동
+  var lockedActivityId = null; // 활동별 등록 링크로 들어오면, 로그인 화면의 활동 선택을 이 활동으로 고정
+  var hofActivityOverride = null; // 활동별 포인트(명예의 전당) 링크로 들어오면, 내 프로필 활동과 상관없이 이 활동만 보여줌
 
   /* 성장 다짐 카드에 붙일 작은 과일 캐릭터 스티커 (학생마다 고정으로 하나씩 배정) */
   var PLEDGE_FRUIT_ICONS = [
@@ -906,40 +905,6 @@
     });
   });
 
-  var bulkPrintBtn = $("#btnBulkPrint");
-  if(bulkPrintBtn){
-    bulkPrintBtn.addEventListener("click", function(){
-      var hint = $("#bulkPrintHint");
-      var list = dashClassFilter==="all" ? artworksCache.slice() : artworksCache.filter(function(a){ return classId(a.grade,a.classNum)===dashClassFilter; });
-      if(dashActivityFilter !== "all"){ list = list.filter(function(a){ return a.activityId===dashActivityFilter; }); }
-      if(!list.length){ hint.textContent = "인쇄할 작품이 없어요. 위 반·활동 필터를 확인해 주세요."; return; }
-      list.sort(function(a,b){ return (a.grade-b.grade) || (a.classNum-b.classNum) || String(a.authorNickname||"").localeCompare(String(b.authorNickname||"")); });
-      var grid = $("#bulkPrintGrid");
-      // 반이 바뀔 때마다 새 페이지에서 시작하도록, 반별 제목을 사이에 넣어서 인쇄해요.
-      var lastClassKey = null;
-      grid.innerHTML = list.map(function(a,i){
-        var ck = classId(a.grade, a.classNum);
-        var header = "";
-        if(ck !== lastClassKey){
-          header = '<div class="bp-class-header' + (lastClassKey===null ? '' : ' bp-page-break') + '">' + esc(classLabel(a.grade,a.classNum)) + '</div>';
-          lastClassKey = ck;
-        }
-        return header + '<div class="badge-print-item">' +
-          '<div class="bp-eyebrow">' + esc(classLabel(a.grade,a.classNum)) + ' ' + esc(String(numberFromArtwork(a))) + '번</div>' +
-          '<div class="bp-nick">' + esc(a.authorNickname) + '</div>' +
-          '<div class="bp-meta">' + esc(a.title) + '</div>' +
-          '<div class="bp-qr" id="bpqr_' + i + '"></div>' +
-        '</div>';
-      }).join("");
-      list.forEach(function(a,i){
-        renderQrInto("#bpqr_" + i, pageUrl({view:"artwork", id:a.id}), 130);
-      });
-      hint.textContent = list.length + "개 작품 QR을 준비했어요. 인쇄 창이 열리면 출력해 주세요.";
-      $("#bulkPrintArea").style.display = "block";
-      setTimeout(function(){ window.print(); }, 60);
-    });
-  }
-
   /* 작품 등록 전에도 학년·반·번호만으로 QR을 미리 만들어 인쇄하는 기능.
      작품 doc id가 studentId(학년-반-번호)로 고정되어 있어서(등록 시 db.doc(myProfile.id).set(...)),
      학생이 아직 등록하지 않았어도 같은 규칙으로 미리 QR을 만들어두면 나중에 그대로 연결돼요. */
@@ -995,19 +960,31 @@
       return;
     }
     sel.innerHTML = activitiesCache.map(function(act){ return '<option value="'+act.id+'">'+esc(act.name)+'</option>'; }).join("");
-    // 우선순위: 내가 이미 등록한 활동 > 이전에 선택해둔 값 > 가장 최근에 추가된 활동(맨 위)
-    var want = (myProfile && myProfile.activityId) || keep;
+    // 우선순위: 활동별 등록 링크로 고정된 활동 > 내가 이미 등록한 활동 > 이전에 선택해둔 값 > 가장 최근에 추가된 활동(맨 위)
+    var want = lockedActivityId || (myProfile && myProfile.activityId) || keep;
     var stillExists = want && activitiesCache.some(function(act){ return act.id === want; });
     sel.value = stillExists ? want : activitiesCache[0].id;
+    var lockNote = $("#activityLockNote");
+    if(lockedActivityId && stillExists && want === lockedActivityId){
+      sel.disabled = true;
+      if(lockNote){ lockNote.textContent = "🔗 링크로 들어와서 활동이 \"" + activityNameById(lockedActivityId) + "\"(으)로 고정됐어요."; lockNote.style.display = "block"; }
+    } else {
+      sel.disabled = false;
+      if(lockNote) lockNote.style.display = "none";
+    }
   }
   function renderActivityManage(){
     var wrap = $("#activityList");
     if(!wrap) return;
     if(!activitiesCache.length){ wrap.innerHTML = '<p class="empty-note" style="padding:10px;font-size:12px;">아직 등록된 활동이 없어요. 위에서 첫 활동을 추가해 보세요.</p>'; return; }
     wrap.innerHTML = activitiesCache.map(function(act,i){
-      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 9px;border:1px solid var(--border);border-radius:var(--radius-s);margin-bottom:5px;background:var(--card-bg);font-size:12.5px;">' +
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 9px;border:1px solid var(--border);border-radius:var(--radius-s);margin-bottom:5px;background:var(--card-bg);font-size:12.5px;flex-wrap:wrap;">' +
         '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(i===0?'<span class="badge badge-genuine" style="margin-right:5px;font-size:10px;padding:2px 7px;">최신</span>':'')+esc(act.name)+'</span>' +
-        '<button class="btn btn-ghost" data-del-activity="'+act.id+'" style="padding:3px 9px;font-size:11px;flex-shrink:0;">삭제</button>' +
+        '<span style="display:flex;gap:5px;flex-shrink:0;">' +
+          '<button class="btn btn-ghost" data-reg-link="'+act.id+'" style="padding:3px 9px;font-size:11px;">📝 등록 QR</button>' +
+          '<button class="btn btn-ghost" data-pts-link="'+act.id+'" style="padding:3px 9px;font-size:11px;">🏆 포인트 QR</button>' +
+          '<button class="btn btn-ghost" data-del-activity="'+act.id+'" style="padding:3px 9px;font-size:11px;">삭제</button>' +
+        '</span>' +
       '</div>';
     }).join("");
     $all("#activityList [data-del-activity]").forEach(function(btn){
@@ -1016,6 +993,22 @@
         db.collection("activities").doc(btn.dataset.delActivity).delete().then(function(){
           toast("활동을 삭제했어요. (이미 등록된 작품의 활동명은 그대로 남아요)");
         }).catch(function(err){ console.error(err); toast("삭제 중 오류가 발생했어요."); });
+      });
+    });
+    /* 활동별로 "등록 링크"와 "포인트(명예의 전당) 링크"를 QR로 바로 보여줘요.
+       등록 QR은 그 활동으로 학생이 바로 로그인·등록하게 하고, 포인트 QR은 그 활동 랭킹만 따로 보여줘요. */
+    $all("#activityList [data-reg-link]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var act = activitiesCache.filter(function(a){ return a.id === btn.dataset.regLink; })[0];
+        if(!act) return;
+        openQrModal("\"" + act.name + "\" 등록 QR", "스캔하면 이 활동으로 바로 등록해요", pageUrl({view:"register", activity:act.id}));
+      });
+    });
+    $all("#activityList [data-pts-link]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var act = activitiesCache.filter(function(a){ return a.id === btn.dataset.ptsLink; })[0];
+        if(!act) return;
+        openQrModal("\"" + act.name + "\" 포인트 QR", "스캔하면 이 활동 명예의 전당만 보여요", pageUrl({view:"hof", activity:act.id}));
       });
     });
   }
@@ -1091,6 +1084,9 @@
         var artId = pendingArtworkAfterSetup;
         pendingArtworkAfterSetup = null;
         openArtwork(artId);
+      } else if(pendingRegisterAfterSetup){
+        pendingRegisterAfterSetup = false;
+        switchTab("register");
       } else {
         switchTab("gallery");
       }
@@ -1493,11 +1489,17 @@
   }
 
   function renderHallOfFame(){
-    // 반 구분 없이, 내가 등록한 활동과 같은 활동의 작품 중 점수 TOP 5. 누구나 볼 수 있는 명예의 전당.
+    // 반 구분 없이, 활동별 링크로 지정된 활동 > 내가 등록한 활동과 같은 활동의 작품 중 점수 TOP 5. 누구나 볼 수 있는 명예의 전당.
     var grid = $("#hofGrid");
-    var pool = (myProfile && myProfile.activityId)
-      ? artworksCache.filter(function(a){ return a.activityId === myProfile.activityId; })
+    var activeActivity = hofActivityOverride || (myProfile && myProfile.activityId);
+    var pool = activeActivity
+      ? artworksCache.filter(function(a){ return a.activityId === activeActivity; })
       : artworksCache;
+    var hofNote = $("#hofActivityNote");
+    if(hofNote){
+      if(hofActivityOverride){ hofNote.textContent = "🔗 \"" + (activityNameById(hofActivityOverride) || "선택한 활동") + "\" 활동 랭킹만 보여주는 링크예요."; hofNote.style.display = "block"; }
+      else { hofNote.style.display = "none"; }
+    }
     var ranked = pool.map(function(a){ return { a:a, sc: artworkScore(a.id) }; })
       .filter(function(x){ return x.sc.count > 0; })
       .sort(function(x,y){ return y.sc.total - x.sc.total; })
@@ -2268,7 +2270,7 @@
   /* ---------------- 라우팅(QR 딥링크) ---------------- */
   function handleDeepLink(){
     var params = new URLSearchParams(location.search);
-    var view = params.get("view"), id = params.get("id");
+    var view = params.get("view"), id = params.get("id"), activity = params.get("activity");
     if(view === "artwork" && id){
       if(myProfile){
         currentArtworkId = id;
@@ -2278,6 +2280,24 @@
         switchTab("setup");
         toast("작품을 보려면 먼저 반을 선택하고 프로필을 등록해 주세요.");
       }
+      return true;
+    }
+    /* 활동별 등록 링크: ?view=register&activity=xxx 로 들어오면 그 활동으로 바로 등록할 수 있어요. */
+    if(view === "register" && activity){
+      lockedActivityId = activity;
+      if(myProfile && myProfile.activityId === activity){
+        switchTab("register");
+      } else {
+        pendingRegisterAfterSetup = true;
+        switchTab("setup");
+        toast("이 링크의 활동으로 등록하려면 먼저 반을 선택하고 프로필을 등록해 주세요.");
+      }
+      return true;
+    }
+    /* 활동별 포인트(명예의 전당) 링크: ?view=hof&activity=xxx 로 들어오면 로그인 없이도 그 활동 랭킹만 보여줘요. */
+    if(view === "hof" && activity){
+      hofActivityOverride = activity;
+      switchTab("hof");
       return true;
     }
     return false;
