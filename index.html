@@ -645,6 +645,23 @@
         <p class="empty-note" id="bulkPrintHint" style="padding:8px 0 0;text-align:left;font-size:11.5px;"></p>
       </div>
       <div class="card" style="margin-top:16px;">
+        <h3 style="font-size:15px;margin-bottom:10px;">🎫 번호별 QR 미리 인쇄 (작품 등록 전)</h3>
+        <p class="empty-note" style="text-align:left;padding:0 0 8px;">학생이 아직 작품을 등록하지 않았어도, 학년·반·번호만으로 QR을 미리 만들어 인쇄할 수 있어요. 학생이 나중에 자기 번호로 로그인해 작품을 등록하면 이미 붙여둔 QR에 그대로 연결돼요. 번호마다 QR이 하나씩만 배정되니, 등록 전에 미리 붙여 놓아도 안전해요.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <label style="font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;">학년
+            <input type="number" id="preQrGrade" min="1" max="3" value="3" style="width:72px;padding:8px;border:1px solid var(--border);border-radius:8px;">
+          </label>
+          <label style="font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;">반
+            <input type="number" id="preQrClass" min="1" max="20" value="1" style="width:72px;padding:8px;border:1px solid var(--border);border-radius:8px;">
+          </label>
+          <label style="font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;">인원 수(번호 1~N)
+            <input type="number" id="preQrCount" min="1" max="40" value="30" style="width:96px;padding:8px;border:1px solid var(--border);border-radius:8px;">
+          </label>
+        </div>
+        <button class="btn btn-primary" id="btnPreQrPrint" style="width:100%;">🎫 이 반 번호별 QR 미리 만들어 인쇄</button>
+        <p class="empty-note" id="preQrHint" style="padding:8px 0 0;text-align:left;font-size:11.5px;"></p>
+      </div>
+      <div class="card" style="margin-top:16px;">
         <h3 style="font-size:15px;margin-bottom:10px;">❓ 반별 질문 모아보기</h3>
         <p class="empty-note" style="text-align:left;padding:0 0 8px;">작품에 등록된 퀴즈 질문 2개와 "궁금한 점"을 작품 사진과 함께 반별로 모아서 볼 수 있어요. 아직 감상한 친구가 없어도 퀴즈 질문은 바로 보여요.</p>
         <button class="btn btn-primary" id="btnOpenQuestions" style="width:100%;">❓ 질문 모아보기 열기</button>
@@ -800,6 +817,12 @@
   function classLabel(grade, classNum){ return grade + "학년 " + classNum + "반"; }
   function classId(grade, classNum){ return grade + "-" + classNum; }
   function studentId(grade, classNum, number){ return grade + "-" + classNum + "-" + number; }
+  /* 예전에 등록된 작품엔 number 필드가 없을 수 있어서, authorId("학년-반-번호")에서 번호를 뽑아내는 보조 함수예요. */
+  function numberFromArtwork(a){
+    if(a && a.number != null && a.number !== "") return a.number;
+    var parts = (a && a.authorId ? String(a.authorId) : "").split("-");
+    return parts.length === 3 ? parts[2] : "";
+  }
   function nowIso(){ return new Date().toISOString(); }
   function toast(msg){
     var t = $("#toast"); t.textContent = msg; t.classList.add("show");
@@ -902,7 +925,7 @@
           lastClassKey = ck;
         }
         return header + '<div class="badge-print-item">' +
-          '<div class="bp-eyebrow">' + esc(classLabel(a.grade,a.classNum)) + '</div>' +
+          '<div class="bp-eyebrow">' + esc(classLabel(a.grade,a.classNum)) + ' ' + esc(String(numberFromArtwork(a))) + '번</div>' +
           '<div class="bp-nick">' + esc(a.authorNickname) + '</div>' +
           '<div class="bp-meta">' + esc(a.title) + '</div>' +
           '<div class="bp-qr" id="bpqr_' + i + '"></div>' +
@@ -912,6 +935,40 @@
         renderQrInto("#bpqr_" + i, pageUrl({view:"artwork", id:a.id}), 130);
       });
       hint.textContent = list.length + "개 작품 QR을 준비했어요. 인쇄 창이 열리면 출력해 주세요.";
+      $("#bulkPrintArea").style.display = "block";
+      setTimeout(function(){ window.print(); }, 60);
+    });
+  }
+
+  /* 작품 등록 전에도 학년·반·번호만으로 QR을 미리 만들어 인쇄하는 기능.
+     작품 doc id가 studentId(학년-반-번호)로 고정되어 있어서(등록 시 db.doc(myProfile.id).set(...)),
+     학생이 아직 등록하지 않았어도 같은 규칙으로 미리 QR을 만들어두면 나중에 그대로 연결돼요. */
+  var preQrBtn = $("#btnPreQrPrint");
+  if(preQrBtn){
+    preQrBtn.addEventListener("click", function(){
+      var hint = $("#preQrHint");
+      var grade = parseInt($("#preQrGrade").value, 10);
+      var classNum = parseInt($("#preQrClass").value, 10);
+      var count = parseInt($("#preQrCount").value, 10);
+      if(!grade || grade<1){ hint.textContent = "학년을 입력해 주세요."; return; }
+      if(!classNum || classNum<1){ hint.textContent = "반을 입력해 주세요."; return; }
+      if(!count || count<1){ hint.textContent = "인원 수를 입력해 주세요."; return; }
+      var grid = $("#bulkPrintGrid");
+      var header = '<div class="bp-class-header">' + esc(classLabel(grade,classNum)) + ' (번호별 QR 미리 인쇄)</div>';
+      var items = [];
+      for(var n=1; n<=count; n++){ items.push(n); }
+      grid.innerHTML = header + items.map(function(n,i){
+        return '<div class="badge-print-item">' +
+          '<div class="bp-eyebrow">' + esc(classLabel(grade,classNum)) + ' ' + n + '번</div>' +
+          '<div class="bp-nick">&nbsp;</div>' +
+          '<div class="bp-meta">작품 등록 후 QR이 연결돼요</div>' +
+          '<div class="bp-qr" id="bpqr_' + i + '"></div>' +
+        '</div>';
+      }).join("");
+      items.forEach(function(n,i){
+        renderQrInto("#bpqr_" + i, pageUrl({view:"artwork", id: studentId(grade,classNum,n)}), 130);
+      });
+      hint.textContent = classLabel(grade,classNum) + " 1~" + count + "번, 총 " + count + "개 QR을 준비했어요. 학생이 등록하기 전에 미리 인쇄해서 자리에 붙여두세요.";
       $("#bulkPrintArea").style.display = "block";
       setTimeout(function(){ window.print(); }, 60);
     });
@@ -1227,17 +1284,19 @@
     if(!pendingImageData){ hint.textContent = "작품 이미지를 선택해 주세요."; return; }
     if(!db){ hint.textContent = "데이터 연결을 확인하고 있어요."; return; }
     hint.textContent = "등록 중…";
-    db.collection("artworks").add({
+    /* 작품 문서 id를 학생 고유 id(학년-반-번호)로 고정해서, 학생이 작품을 등록하기 전에도
+       선생님이 번호별 QR을 미리 만들어 인쇄해 둘 수 있게 해요. 등록하면 같은 QR이 그대로 연결돼요. */
+    db.doc("artworks/" + myProfile.id).set({
       authorId: myProfile.id, authorNickname: myProfile.nickname,
-      grade: myProfile.grade, classNum: myProfile.classNum,
+      grade: myProfile.grade, classNum: myProfile.classNum, number: myProfile.number,
       activityId: myProfile.activityId || "", activityName: myProfile.activityName || "",
       title: title, medium: medium, desc: desc, aiDesc: aiDesc,
       quiz: quiz.map(function(q){ return q.type==="mc" ? {type:"mc",text:q.text,choices:q.choices,correctIndex:q.correctIndex} : {type:"text",text:q.text}; }),
       imageData: pendingImageData, createdAt: nowIso()
-    }).then(function(ref){
+    }).then(function(){
       hint.textContent = "";
       toast("작품이 등록되었어요!");
-      var url = pageUrl({view:"artwork", id: ref.id});
+      var url = pageUrl({view:"artwork", id: myProfile.id});
       openQrModal(title, "작품 QR · " + myProfile.nickname, url, medium);
       $("#inTitle").value=""; $("#inMedium").value=""; $("#inDesc").value=""; $("#inAiDesc").value="";
       renderQuizBuilder(inQuizBuilderEl, "in", []);
