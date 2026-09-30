@@ -646,8 +646,11 @@
       </div>
       <div class="card" style="margin-top:16px;">
         <h3 style="font-size:15px;margin-bottom:10px;">🎫 번호별 QR 미리 인쇄 (작품 등록 전)</h3>
-        <p class="empty-note" style="text-align:left;padding:0 0 8px;">학생이 아직 작품을 등록하지 않았어도, 학년·반·번호만으로 QR을 미리 만들어 인쇄할 수 있어요. 학생이 나중에 자기 번호로 로그인해 작품을 등록하면 이미 붙여둔 QR에 그대로 연결돼요. 번호마다 QR이 하나씩만 배정되니, 등록 전에 미리 붙여 놓아도 안전해요.</p>
+        <p class="empty-note" style="text-align:left;padding:0 0 8px;">학생이 아직 작품을 등록하지 않았어도, 활동·학년·반·번호만으로 QR을 미리 만들어 인쇄할 수 있어요. 학생이 나중에 그 활동·번호로 로그인해 작품을 등록하면 이미 붙여둔 QR에 그대로 연결돼요. 같은 학생이 다른 활동(예: 민화, 전각)에 또 등록하면 QR도 활동별로 따로 만들어야 해요.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <label style="font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px;">활동
+            <select id="preQrActivity" style="padding:8px;border:1px solid var(--border);border-radius:8px;"><option value="">불러오는 중…</option></select>
+          </label>
           <label style="font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;">학년
             <input type="number" id="preQrGrade" min="1" max="3" value="3" style="width:72px;padding:8px;border:1px solid var(--border);border-radius:8px;">
           </label>
@@ -840,6 +843,10 @@
   function classLabel(grade, classNum){ return grade + "학년 " + classNum + "반"; }
   function classId(grade, classNum){ return grade + "-" + classNum; }
   function studentId(grade, classNum, number){ return grade + "-" + classNum + "-" + number; }
+  /* 학생 한 명이 활동(민화/전각 등)별로 작품을 따로 등록할 수 있도록, 작품 문서 id를
+     "학생id__활동id"로 고정해요. 그래도 학생이 작품을 등록하기 전에 번호별 QR을 미리 만들 수 있어요
+     (그 활동으로 등록할 걸 미리 알고 있을 때). */
+  function artworkDocId(sid, activityId){ return sid + "__" + activityId; }
   /* 예전에 등록된 작품엔 number 필드가 없을 수 있어서, authorId("학년-반-번호")에서 번호를 뽑아내는 보조 함수예요. */
   function numberFromArtwork(a){
     if(a && a.number != null && a.number !== "") return a.number;
@@ -985,32 +992,48 @@
   /* 작품 등록 전에도 학년·반·번호만으로 QR을 미리 만들어 인쇄하는 기능.
      작품 doc id가 studentId(학년-반-번호)로 고정되어 있어서(등록 시 db.doc(myProfile.id).set(...)),
      학생이 아직 등록하지 않았어도 같은 규칙으로 미리 QR을 만들어두면 나중에 그대로 연결돼요. */
+  /* 활동을 고를 수 있어야, 같은 반 학생이 민화·전각처럼 활동을 여러 개 하더라도 활동별로 QR을 따로 미리 만들 수 있어요. */
+  function renderPreQrActivityOptions(){
+    var sel = $("#preQrActivity");
+    if(!sel) return;
+    var keep = sel.value;
+    if(!activitiesCache.length){
+      sel.innerHTML = '<option value="">선생님이 활동을 아직 추가하지 않았어요</option>';
+      return;
+    }
+    sel.innerHTML = activitiesCache.map(function(act){ return '<option value="'+act.id+'">'+esc(act.name)+'</option>'; }).join("");
+    var stillExists = keep && activitiesCache.some(function(act){ return act.id === keep; });
+    sel.value = stillExists ? keep : activitiesCache[0].id;
+  }
   var preQrBtn = $("#btnPreQrPrint");
   if(preQrBtn){
     preQrBtn.addEventListener("click", function(){
       var hint = $("#preQrHint");
+      var activityId = $("#preQrActivity").value;
       var grade = parseInt($("#preQrGrade").value, 10);
       var classNum = parseInt($("#preQrClass").value, 10);
       var count = parseInt($("#preQrCount").value, 10);
+      if(!activityId){ hint.textContent = "활동을 선택해 주세요. (목록에 없으면 먼저 위에서 활동을 추가하세요)"; return; }
       if(!grade || grade<1){ hint.textContent = "학년을 입력해 주세요."; return; }
       if(!classNum || classNum<1){ hint.textContent = "반을 입력해 주세요."; return; }
       if(!count || count<1){ hint.textContent = "인원 수를 입력해 주세요."; return; }
+      var activityName = activityNameById(activityId);
       var grid = $("#bulkPrintGrid");
-      var header = '<div class="bp-class-header">' + esc(classLabel(grade,classNum)) + ' (번호별 QR 미리 인쇄)</div>';
+      var header = '<div class="bp-class-header">' + esc(classLabel(grade,classNum)) + ' · ' + esc(activityName) + ' (번호별 QR 미리 인쇄)</div>';
       var items = [];
       for(var n=1; n<=count; n++){ items.push(n); }
       grid.innerHTML = header + items.map(function(n,i){
         return '<div class="badge-print-item">' +
-          '<div class="bp-eyebrow">' + esc(classLabel(grade,classNum)) + ' ' + n + '번</div>' +
+          '<div class="bp-eyebrow">' + esc(classLabel(grade,classNum)) + ' ' + n + '번 · ' + esc(activityName) + '</div>' +
           '<div class="bp-nick">&nbsp;</div>' +
           '<div class="bp-meta">작품 등록 후 QR이 연결돼요</div>' +
           '<div class="bp-qr" id="bpqr_' + i + '"></div>' +
         '</div>';
       }).join("");
       items.forEach(function(n,i){
-        renderQrInto("#bpqr_" + i, pageUrl({view:"artwork", id: studentId(grade,classNum,n)}), 130);
+        renderQrInto("#bpqr_" + i, pageUrl({view:"artwork", id: artworkDocId(studentId(grade,classNum,n), activityId)}), 130);
       });
-      hint.textContent = classLabel(grade,classNum) + " 1~" + count + "번, 총 " + count + "개 QR을 준비했어요. 학생이 등록하기 전에 미리 인쇄해서 자리에 붙여두세요.";
+      hint.textContent = classLabel(grade,classNum) + " · " + activityName + " 1~" + count + "번, 총 " + count + "개 QR을 준비했어요. 학생이 등록하기 전에 미리 인쇄해서 자리에 붙여두세요.";
       $("#bulkPrintArea").style.display = "block";
       setTimeout(function(){ window.print(); }, 60);
     });
@@ -1375,9 +1398,10 @@
     if(!pendingImageData){ hint.textContent = "작품 이미지를 선택해 주세요."; return; }
     if(!db){ hint.textContent = "데이터 연결을 확인하고 있어요."; return; }
     hint.textContent = "등록 중…";
-    /* 작품 문서 id를 학생 고유 id(학년-반-번호)로 고정해서, 학생이 작품을 등록하기 전에도
-       선생님이 번호별 QR을 미리 만들어 인쇄해 둘 수 있게 해요. 등록하면 같은 QR이 그대로 연결돼요. */
-    db.doc("artworks/" + myProfile.id).set({
+    /* 작품 문서 id를 "학생id__활동id"로 고정해서, 같은 학생이라도 활동(예: 민화/전각)마다
+       작품을 따로 등록·확인할 수 있게 하고, 학생이 등록하기 전에도 선생님이 번호별 QR을 미리
+       만들어 인쇄해 둘 수 있게 해요. 등록하면 같은 QR이 그대로 연결돼요. */
+    db.doc("artworks/" + artworkDocId(myProfile.id, myProfile.activityId)).set({
       authorId: myProfile.id, authorNickname: myProfile.nickname,
       grade: myProfile.grade, classNum: myProfile.classNum, number: myProfile.number,
       activityId: myProfile.activityId || "", activityName: myProfile.activityName || "",
@@ -1386,9 +1410,7 @@
       imageData: pendingImageData, createdAt: nowIso()
     }).then(function(){
       hint.textContent = "";
-      toast("작품이 등록되었어요!");
-      var url = pageUrl({view:"artwork", id: myProfile.id});
-      openQrModal(title, "작품 QR · " + myProfile.nickname, url, medium);
+      toast("입력완료!");
       $("#inTitle").value=""; $("#inMedium").value=""; $("#inDesc").value=""; $("#inAiDesc").value="";
       renderQuizBuilder(inQuizBuilderEl, "in", []);
       $("#inImage").value=""; $("#imgPreview").innerHTML='<span class="ph">🖼️</span>'; pendingImageData=null;
@@ -1402,9 +1424,11 @@
 
   /* ---------------- 작품 등록 페이지: 이미 등록한 작품이 있으면 보기/수정 모드로 ---------------- */
   var registerMode = "auto"; // "auto" | "new" | "view" | "edit"
+  /* 학생 한 명이 "민화" 활동과 "전각" 활동에 각각 따로 작품을 등록할 수 있도록,
+     같은 학생이라도 지금 선택된 활동(myProfile.activityId)이 같은 작품만 "내 작품"으로 봐요. */
   function myArtwork(){
     if(!myProfile) return null;
-    return artworksCache.filter(function(a){ return a.authorId === myProfile.id; })[0] || null;
+    return artworksCache.filter(function(a){ return a.authorId === myProfile.id && a.activityId === myProfile.activityId; })[0] || null;
   }
   function renderRegisterView(){
     var newWrap = $("#registerNewWrap"), viewWrap = $("#registerViewWrap");
@@ -2125,6 +2149,7 @@
     renderDashFilters();
     renderActivityManage();
     renderClassPinManage();
+    renderPreQrActivityOptions();
     var studentsForDash = dashClassFilter==="all" ? studentsCache : studentsCache.filter(function(s){ return classId(s.grade,s.classNum)===dashClassFilter; });
     var artworksForDash = dashClassFilter==="all" ? artworksCache : artworksCache.filter(function(a){ return classId(a.grade,a.classNum)===dashClassFilter; });
     if(dashActivityFilter !== "all"){
@@ -2328,6 +2353,7 @@
     db.collection("activities").orderBy("createdAt","desc").limit(100).onSnapshot(function(snap){
       activitiesCache = docListFromSnap(snap);
       renderActivityOptions();
+      renderPreQrActivityOptions();
       if(document.querySelector('[data-view="dash"]').classList.contains("active")){ renderActivityManage(); renderDashboard(); }
       if(document.querySelector('[data-view="gallery"]').classList.contains("active")){ renderGallery(); renderGalleryFilters(); }
     }, function(err){ console.error("activities", err); });
