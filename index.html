@@ -310,6 +310,12 @@
     background:rgba(20,16,10,.62);color:#F6F1E7;border:1px solid rgba(255,255,255,.25);
     display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;backdrop-filter:blur(2px);
   }
+  .qr-lock-badge{
+    position:absolute;top:8px;left:8px;background:rgba(20,16,10,.62);color:#F6F1E7;
+    font-size:11px;font-weight:600;padding:4px 9px;border-radius:999px;backdrop-filter:blur(2px);
+    display:flex;align-items:center;gap:4px;
+  }
+  .art-card.qr-locked{cursor:default;}
   .art-frame .qr-quick:hover{background:rgba(20,16,10,.82);}
   .art-body{padding:13px 14px 15px;display:flex;flex-direction:column;gap:6px;flex:1;}
   .art-title{font-family:var(--font-display);font-size:16.5px;font-weight:700;}
@@ -1373,6 +1379,13 @@
     }
   }
 
+  /* 갤러리·명예의 전당에서 바로 퀴즈를 열 수 있는지 여부: 갤러리 워크(QR 스캔)를 유도하기 위해
+     본인 작품이거나 교사 모드일 때만 허용하고, 다른 친구 작품은 QR을 스캔해야만 열리도록 막아요. */
+  function canOpenFromGallery(a){
+    if(isTeacherUnlocked()) return true;
+    return !!(myProfile && a && myProfile.id === a.authorId);
+  }
+
   function renderGallery(){
     var grid = $("#galleryGrid");
     if(!myProfile){
@@ -1386,8 +1399,10 @@
     if(!list.length){ grid.innerHTML = '<p class="empty-note">아직 등록된 작품이 없어요. [작품 등록] 탭에서 첫 작품을 올려보세요!</p>'; return; }
     grid.innerHTML = list.map(function(a){
       var sc = artworkScore(a.id); var b = badgeFor(sc.total);
-      return '<div class="art-card" data-id="'+a.id+'">' +
+      var locked = !canOpenFromGallery(a);
+      return '<div class="art-card' + (locked ? ' qr-locked' : '') + '" data-id="'+a.id+'">' +
         '<div class="art-frame">' + (a.imageData ? '<img src="'+a.imageData+'" alt="">' : '<span class="ph">🖼️</span>') +
+          (locked ? '<span class="qr-lock-badge">📱 QR 감상</span>' : '') +
           '<button class="qr-quick" data-qr="'+a.id+'" title="작품 QR 보기">▦</button>' +
         '</div>' +
         '<div class="art-body">' +
@@ -1398,7 +1413,11 @@
         '</div></div>';
     }).join("");
     $all(".art-card").forEach(function(card){
-      card.addEventListener("click", function(){ openArtwork(card.dataset.id); });
+      card.addEventListener("click", function(){
+        var a = artworksCache.filter(function(x){ return x.id===card.dataset.id; })[0];
+        if(a && !canOpenFromGallery(a)){ toast("친구 작품은 옆에 붙은 QR을 스캔해야 감상하고 퀴즈를 풀 수 있어요!"); return; }
+        openArtwork(card.dataset.id);
+      });
     });
     $all(".qr-quick").forEach(function(btn){
       btn.addEventListener("click", function(e){
@@ -1423,9 +1442,11 @@
     var medals = ["🥇","🥈","🥉","🏅","🏅"];
     grid.innerHTML = ranked.map(function(x,i){
       var a=x.a, sc=x.sc, b=badgeFor(sc.total);
-      return '<div class="art-card" data-id="'+a.id+'">' +
+      var locked = !canOpenFromGallery(a);
+      return '<div class="art-card' + (locked ? ' qr-locked' : '') + '" data-id="'+a.id+'">' +
         '<div class="art-frame">' + (a.imageData ? '<img src="'+a.imageData+'" alt="">' : '<span class="ph">🖼️</span>') +
           '<span style="position:absolute;top:6px;left:8px;font-size:24px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));">'+medals[i]+'</span>' +
+          (locked ? '<span class="qr-lock-badge" style="left:auto;right:8px;">📱 QR 감상</span>' : '') +
         '</div>' +
         '<div class="art-body">' +
           '<div class="art-meta"><span class="badge '+b.cls+'">'+b.label+'</span><span>'+classLabel(a.grade,a.classNum)+'</span></div>' +
@@ -1435,11 +1456,41 @@
         '</div></div>';
     }).join("");
     $all("#hofGrid .art-card").forEach(function(card){
-      card.addEventListener("click", function(){ openArtwork(card.dataset.id); });
+      card.addEventListener("click", function(){
+        var a = artworksCache.filter(function(x){ return x.id===card.dataset.id; })[0];
+        if(a && !canOpenFromGallery(a)){ toast("친구 작품은 옆에 붙은 QR을 스캔해야 감상하고 퀴즈를 풀 수 있어요!"); return; }
+        openArtwork(card.dataset.id);
+      });
+    });
+  }
+
+  /* 실시간 동기화(onSnapshot)로 화면이 다시 그려질 때, 아직 제출하지 않고 입력 중이던
+     퀴즈 답변이 사라지지 않도록 값을 잠깐 저장했다가 다시 채워 넣어요. */
+  function captureQuizDraft(){
+    var draft = { texts:{}, mc:{} };
+    $all('#artworkDetail textarea[id^="qa_"]').forEach(function(el){ draft.texts[el.id] = el.value; });
+    var qq = $("#qaQuestion");
+    if(qq) draft.texts.qaQuestion = qq.value;
+    $all('#artworkDetail input[type="radio"][name^="qa_"]:checked').forEach(function(el){ draft.mc[el.name] = el.value; });
+    var hasContent = Object.keys(draft.texts).some(function(k){ return draft.texts[k]; }) || Object.keys(draft.mc).length > 0;
+    return hasContent ? draft : null;
+  }
+  function restoreQuizDraft(draft){
+    if(!draft) return;
+    Object.keys(draft.texts).forEach(function(id){
+      var el = document.getElementById(id);
+      if(el && !el.value) el.value = draft.texts[id];
+    });
+    Object.keys(draft.mc).forEach(function(name){
+      var el = $('#artworkDetail input[name="'+name+'"][value="'+draft.mc[name]+'"]');
+      if(el) el.checked = true;
     });
   }
 
   function openArtwork(id){
+    /* 같은 작품을 이미 보고 있는 상태에서 실시간 갱신으로 다시 그려지는 경우에만
+       입력 중이던 답변 초안을 붙잡아 뒀다가 복원해요. (다른 작품으로 새로 이동할 때는 해당 없음) */
+    var draft = (currentArtworkId === id) ? captureQuizDraft() : null;
     currentArtworkId = id;
     var fromView = document.querySelector(".view.active");
     if(fromView && (fromView.dataset.view === "gallery" || fromView.dataset.view === "hof" || fromView.dataset.view === "dash")) artworkReturnTab = fromView.dataset.view;
@@ -1549,6 +1600,8 @@
           '</div>' +
         '</div>' +
       '</div>';
+
+    restoreQuizDraft(draft);
 
     var qrBtn = $("#btnShowArtQr");
     if(qrBtn) qrBtn.addEventListener("click", function(){ openQrModal(a.title, "작품 QR · " + a.authorNickname, pageUrl({view:"artwork", id:a.id}), a.medium); });
