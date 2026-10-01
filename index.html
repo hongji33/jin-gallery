@@ -1542,10 +1542,28 @@
       .sort(function(a,b){ return (a.grade-b.grade) || (a.classNum-b.classNum); });
   }
 
+  /* 교사가 전시관에서 둘러볼 반·활동. 처음에는 내 프로필 값으로 시작하고,
+     선택을 바꾸면 그 반·활동의 작품을 바로 보여줘요(수정·삭제도 그 자리에서 가능). */
+  var galTeacherGrade = null, galTeacherClass = null, galTeacherActivityId = null;
+
   function renderGalleryFilters(){
     // 학생은 자기 반 + 자기 활동 작품만 볼 수 있어요 (다른 반·다른 활동 작품은 [명예의 전당]에서만 확인 가능).
     var wrap = $("#classFilter");
-    if(myProfile){
+    if(isTeacherUnlocked()){
+      if(galTeacherGrade == null) galTeacherGrade = myProfile ? myProfile.grade : 1;
+      if(galTeacherClass == null) galTeacherClass = myProfile ? myProfile.classNum : 1;
+      if(galTeacherActivityId == null) galTeacherActivityId = (myProfile && myProfile.activityId) || (activitiesCache[0] && activitiesCache[0].id) || "";
+      wrap.innerHTML =
+        '<span class="seg-btn active" style="cursor:default;">🔓 교사 모드 · 반·활동 선택</span>' +
+        '<input type="number" id="galTeacherGrade" min="1" max="3" value="'+galTeacherGrade+'" style="width:56px;" placeholder="학년">' +
+        '<input type="number" id="galTeacherClass" min="1" max="20" value="'+galTeacherClass+'" style="width:56px;" placeholder="반">' +
+        '<select id="galTeacherActivity">' + activitiesCache.map(function(act){
+          return '<option value="'+act.id+'"'+(act.id===galTeacherActivityId?' selected':'')+'>'+esc(act.name)+'</option>';
+        }).join("") + '</select>';
+      $("#galTeacherGrade").addEventListener("change", function(){ galTeacherGrade = parseInt(this.value,10) || 1; renderGallery(); });
+      $("#galTeacherClass").addEventListener("change", function(){ galTeacherClass = parseInt(this.value,10) || 1; renderGallery(); });
+      $("#galTeacherActivity").addEventListener("change", function(){ galTeacherActivityId = this.value; renderGallery(); });
+    } else if(myProfile){
       var label = esc(classLabel(myProfile.grade, myProfile.classNum)) + (myProfile.activityName ? ' · ' + esc(myProfile.activityName) : '') + ' 작품만 표시 중';
       wrap.innerHTML = '<span class="seg-btn active" style="cursor:default;">' + label + '</span>';
     } else {
@@ -1562,14 +1580,23 @@
 
   function renderGallery(){
     var grid = $("#galleryGrid");
-    if(!myProfile){
+    var teacherBrowsing = isTeacherUnlocked();
+    if(!myProfile && !teacherBrowsing){
       grid.innerHTML = '<p class="empty-note">[로그인하기] 탭에서 먼저 프로필을 등록하면 우리 반 작품을 볼 수 있어요.</p>';
       return;
     }
-    var myClassId = classId(myProfile.grade, myProfile.classNum);
-    var list = artworksCache.filter(function(a){
-      return classId(a.grade,a.classNum)===myClassId && (!myProfile.activityId || a.activityId===myProfile.activityId);
-    });
+    var list;
+    if(teacherBrowsing){
+      var tClassId = classId(galTeacherGrade, galTeacherClass);
+      list = artworksCache.filter(function(a){
+        return classId(a.grade,a.classNum)===tClassId && (!galTeacherActivityId || a.activityId===galTeacherActivityId);
+      });
+    } else {
+      var myClassId = classId(myProfile.grade, myProfile.classNum);
+      list = artworksCache.filter(function(a){
+        return classId(a.grade,a.classNum)===myClassId && (!myProfile.activityId || a.activityId===myProfile.activityId);
+      });
+    }
     if(!list.length){ grid.innerHTML = '<p class="empty-note">아직 등록된 작품이 없어요. [작품 등록] 탭에서 첫 작품을 올려보세요!</p>'; return; }
     grid.innerHTML = list.map(function(a){
       var sc = artworkScore(a.id); var b = badgeFor(sc.total);
@@ -1619,14 +1646,14 @@
       .sort(function(x,y){ return y.sc.total - x.sc.total; })
       .slice(0,5);
     if(!ranked.length){ grid.innerHTML = '<p class="empty-note">아직 명예의 전당에 오른 작품이 없어요. 감상평이 쌓이면 순위가 나타나요.</p>'; return; }
+    /* 명예의 전당에 오른 작품은 이미 반 전체에 "잘 만든 작품"으로 소개된 것이라,
+       갤러리 워크처럼 QR을 꼭 스캔하지 않아도 누구나 바로 열어 볼 수 있게 해요. */
     var medals = ["🥇","🥈","🥉","🏅","🏅"];
     grid.innerHTML = ranked.map(function(x,i){
       var a=x.a, sc=x.sc, b=badgeFor(sc.total);
-      var locked = !canOpenFromGallery(a);
-      return '<div class="art-card' + (locked ? ' qr-locked' : '') + '" data-id="'+a.id+'">' +
+      return '<div class="art-card" data-id="'+a.id+'">' +
         '<div class="art-frame">' + (a.imageData ? '<img src="'+a.imageData+'" alt="">' : '<span class="ph">🖼️</span>') +
           '<span style="position:absolute;top:6px;left:8px;font-size:24px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));">'+medals[i]+'</span>' +
-          (locked ? '<span class="qr-lock-badge" style="left:auto;right:8px;">📱 QR 감상</span>' : '') +
         '</div>' +
         '<div class="art-body">' +
           '<div class="art-meta"><span class="badge '+b.cls+'">'+b.label+'</span><span>'+classLabel(a.grade,a.classNum)+'</span></div>' +
@@ -1637,8 +1664,6 @@
     }).join("");
     $all("#hofGrid .art-card").forEach(function(card){
       card.addEventListener("click", function(){
-        var a = artworksCache.filter(function(x){ return x.id===card.dataset.id; })[0];
-        if(a && !canOpenFromGallery(a)){ toast("친구 작품은 옆에 붙은 QR을 스캔해야 감상하고 퀴즈를 풀 수 있어요!"); return; }
         openArtwork(card.dataset.id);
       });
     });
