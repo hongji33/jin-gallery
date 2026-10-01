@@ -585,7 +585,6 @@
           <div class="field"><label>작품 제목</label><input type="text" id="inTitle" maxlength="30" placeholder="예: 민화 속 까치호랑이"></div>
           <div class="field"><label>사용한 재료·기법</label><input type="text" id="inMedium" maxlength="30" placeholder="예: 한지에 채색, 아크릴 물감"></div>
           <div class="field"><label>작가의 작품 소개</label><textarea id="inDesc" maxlength="300" placeholder="작품에 담긴 이야기나 표현 의도를 내가 직접 소개해 주세요."></textarea></div>
-          <div class="field"><label>AI의 작품 해설 <span style="font-weight:400;color:var(--ink-soft);font-size:11.5px;">(AI 챗봇에게 물어본 해설을 복사해서 붙여넣어요)</span></label><textarea id="inAiDesc" maxlength="600" placeholder="AI 챗봇이 해준 작품 해설을 여기에 붙여넣어 주세요."></textarea></div>
           <div class="field" style="margin-bottom:4px;"><label>감상 퀴즈 2가지</label><p class="empty-note" style="padding:0;text-align:left;font-size:12px;">내 작품에 대해 퀴즈를 내보아요. 감상한 친구들이 내 작품을 더 깊이 이해할 수 있도록 질문을 만들어 보세요.</p></div>
           <div id="inQuizBuilder"></div>
           <button class="btn btn-primary" id="btnSubmitArt" style="width:100%">작품 등록하고 QR 발급받기</button>
@@ -1391,7 +1390,6 @@
     var title = $("#inTitle").value.trim();
     var medium = $("#inMedium").value.trim();
     var desc = $("#inDesc").value.trim();
-    var aiDesc = $("#inAiDesc").value.trim();
     var quiz = readQuizFromBuilder(inQuizBuilderEl, "in");
     if(!title){ hint.textContent = "작품 제목을 입력해 주세요."; return; }
     if(quiz.some(function(q){ return !q.ok; })){ hint.textContent = "퀴즈 2가지를 모두 입력해 주세요. 객관식은 질문과 보기 2개 이상, 정답 선택까지 필요해요."; return; }
@@ -1405,13 +1403,13 @@
       authorId: myProfile.id, authorNickname: myProfile.nickname,
       grade: myProfile.grade, classNum: myProfile.classNum, number: myProfile.number,
       activityId: myProfile.activityId || "", activityName: myProfile.activityName || "",
-      title: title, medium: medium, desc: desc, aiDesc: aiDesc,
+      title: title, medium: medium, desc: desc,
       quiz: quiz.map(function(q){ return q.type==="mc" ? {type:"mc",text:q.text,choices:q.choices,correctIndex:q.correctIndex} : {type:"text",text:q.text}; }),
       imageData: pendingImageData, createdAt: nowIso()
     }).then(function(){
       hint.textContent = "";
       toast("입력완료!");
-      $("#inTitle").value=""; $("#inMedium").value=""; $("#inDesc").value=""; $("#inAiDesc").value="";
+      $("#inTitle").value=""; $("#inMedium").value=""; $("#inDesc").value="";
       renderQuizBuilder(inQuizBuilderEl, "in", []);
       $("#inImage").value=""; $("#imgPreview").innerHTML='<span class="ph">🖼️</span>'; pendingImageData=null;
       registerMode = "view";
@@ -1466,7 +1464,6 @@
             '<div class="field"><label>작품 제목</label><p style="color:var(--ink);font-size:15px;margin:2px 0 0;">'+esc(a.title)+'</p></div>' +
             '<div class="field"><label>사용한 재료·기법</label><p style="color:var(--ink-soft);font-size:13.5px;margin:2px 0 0;">'+esc(a.medium||"-")+'</p></div>' +
             '<div class="field"><label>작가의 작품 소개</label><p style="color:var(--ink-soft);font-size:13.5px;white-space:pre-wrap;margin:2px 0 0;">'+esc(a.desc||"-")+'</p></div>' +
-            (a.aiDesc ? '<div class="field"><label>AI의 작품 해설</label><p style="color:var(--ink-soft);font-size:13.5px;white-space:pre-wrap;margin:2px 0 0;">'+esc(a.aiDesc)+'</p></div>' : '') +
             (a.quiz||[]).map(function(q,i){
               var qq = normalizeQuizQ(q);
               var extra = qq.type==="mc" ? ' <span style="color:var(--ink-soft);font-size:12px;">(객관식 · 정답: '+esc((qq.choices||[])[qq.correctIndex]||"")+')</span>' : ' <span style="color:var(--ink-soft);font-size:12px;">(주관식)</span>';
@@ -1488,7 +1485,6 @@
             '<div class="field"><label>작품 제목</label><input type="text" id="regEditTitle" maxlength="30" value="'+esc(a.title||"")+'"></div>' +
             '<div class="field"><label>사용한 재료·기법</label><input type="text" id="regEditMedium" maxlength="30" value="'+esc(a.medium||"")+'"></div>' +
             '<div class="field"><label>작가의 작품 소개</label><textarea id="regEditDesc" maxlength="300">'+esc(a.desc||"")+'</textarea></div>' +
-            '<div class="field"><label>AI의 작품 해설</label><textarea id="regEditAiDesc" maxlength="600">'+esc(a.aiDesc||"")+'</textarea></div>' +
             '<div class="field" style="margin-bottom:4px;"><label>감상 퀴즈 2가지</label><p class="empty-note" style="padding:0;text-align:left;font-size:12px;">내 작품에 대해 퀴즈를 내보아요. 감상한 친구들이 내 작품을 더 깊이 이해할 수 있도록 질문을 만들어 보세요.</p></div>' +
             '<div id="regEditQuizBuilder"></div>' +
             '<p class="empty-note" style="text-align:left;padding:0 0 10px;">사진은 여기서 바꿀 수 없어요. 사진을 바꾸려면 작품을 삭제하고 새로 등록해 주세요.</p>' +
@@ -1508,7 +1504,6 @@
       var title = $("#regEditTitle").value.trim();
       var medium = $("#regEditMedium").value.trim();
       var desc = $("#regEditDesc").value.trim();
-      var aiDesc = $("#regEditAiDesc").value.trim();
       var quiz = readQuizFromBuilder(qb, "regEdit");
       var hint = $("#regEditHint");
       if(!title){ hint.textContent = "작품 제목을 입력해 주세요."; return; }
@@ -1516,7 +1511,7 @@
       if(!db){ hint.textContent = "데이터 연결을 확인하고 있어요."; return; }
       hint.textContent = "저장 중…";
       db.doc("artworks/" + a.id).update({
-        title: title, medium: medium, desc: desc, aiDesc: aiDesc,
+        title: title, medium: medium, desc: desc,
         quiz: quiz.map(function(q){ return q.type==="mc" ? {type:"mc",text:q.text,choices:q.choices,correctIndex:q.correctIndex} : {type:"text",text:q.text}; })
       }).then(function(){
         toast("작품 정보를 수정했어요.");
@@ -1772,11 +1767,6 @@
             '<h3 style="font-size:13px;margin-bottom:4px;">🖌️ 작가의 작품 소개</h3>' +
             '<p style="color:var(--ink-soft);font-size:13.5px;white-space:pre-wrap;">'+esc(a.desc||"작가가 아직 작품 소개를 적지 않았어요.")+'</p>' +
           '</div>' +
-          (a.aiDesc ? (
-          '<div class="card" style="margin-top:10px;">' +
-            '<h3 style="font-size:13px;margin-bottom:4px;">🤖 AI의 작품 해설</h3>' +
-            '<p style="color:var(--ink-soft);font-size:13.5px;white-space:pre-wrap;">'+esc(a.aiDesc)+'</p>' +
-          '</div>') : "") +
           '<div class="card" style="margin-top:16px;">' +
             '<h3 style="font-size:14px;margin-bottom:4px;">감상 퀴즈</h3>' + quizHtml +
           '</div>' +
@@ -1831,7 +1821,6 @@
         '<div class="field"><label>작품 제목</label><input type="text" id="editTitle" maxlength="30" value="'+esc(a.title||"")+'"></div>' +
         '<div class="field"><label>사용한 재료·기법</label><input type="text" id="editMedium" maxlength="30" value="'+esc(a.medium||"")+'"></div>' +
         '<div class="field"><label>작가의 작품 소개</label><textarea id="editDesc" maxlength="300">'+esc(a.desc||"")+'</textarea></div>' +
-        '<div class="field"><label>AI의 작품 해설</label><textarea id="editAiDesc" maxlength="600">'+esc(a.aiDesc||"")+'</textarea></div>' +
         '<div class="field" style="margin-bottom:4px;"><label>감상 퀴즈 2가지</label><p class="empty-note" style="padding:0;text-align:left;font-size:12px;">내 작품에 대해 퀴즈를 내보아요. 감상한 친구들이 내 작품을 더 깊이 이해할 수 있도록 질문을 만들어 보세요.</p></div>' +
         '<div id="editQuizBuilder"></div>' +
         '<p class="empty-note" style="text-align:left;padding:0 0 10px;">사진은 여기서 바꿀 수 없어요. 사진을 바꾸려면 작품을 삭제하고 새로 등록해 주세요.</p>' +
@@ -1848,7 +1837,6 @@
       var title = $("#editTitle").value.trim();
       var medium = $("#editMedium").value.trim();
       var desc = $("#editDesc").value.trim();
-      var aiDesc = $("#editAiDesc").value.trim();
       var quiz = readQuizFromBuilder(editQuizBuilderEl, "edit");
       var hint = $("#artEditHint");
       if(!title){ hint.textContent = "작품 제목을 입력해 주세요."; return; }
@@ -1856,7 +1844,7 @@
       if(!db){ hint.textContent = "데이터 연결을 확인하고 있어요."; return; }
       hint.textContent = "저장 중…";
       db.doc("artworks/" + a.id).update({
-        title: title, medium: medium, desc: desc, aiDesc: aiDesc,
+        title: title, medium: medium, desc: desc,
         quiz: quiz.map(function(q){ return q.type==="mc" ? {type:"mc",text:q.text,choices:q.choices,correctIndex:q.correctIndex} : {type:"text",text:q.text}; })
       }).then(function(){
         toast("작품 정보를 수정했어요.");
