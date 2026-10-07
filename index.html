@@ -254,11 +254,12 @@
 
   @media print{
     body *{visibility:hidden;}
-    .app{display:none;} /* 화면에 항상 떠 있는 전체 앱 화면은 인쇄 시 완전히 제거해서, 남는 빈 공간 때문에 페이지가 여러 장으로 나뉘고 고정 위치인 QR 인쇄 영역이 각 장마다 반복 출력되는 문제를 막아요 */
+    .app{display:none;} /* 화면에 항상 떠 있는 전체 앱 화면은 인쇄 시 완전히 제거해서, 남는 빈 공간 때문에 인쇄 영역 앞에 빈 페이지가 끼는 문제를 막아요 */
     #printArea, #printArea *, #bulkPrintArea, #bulkPrintArea *, #questionsPrintArea, #questionsPrintArea *{visibility:visible;}
-    #printArea{position:fixed;top:0;left:0;width:100%;}
-    #bulkPrintArea{position:fixed;top:0;left:0;width:100%;}
-    #questionsPrintArea{position:fixed;top:0;left:0;width:100%;}
+    /* position:fixed로 고정하면 인쇄 영역이 1페이지에만 묶여서, 내용이 많을 때 1페이지를 넘는 부분이
+       다음 페이지로 안 넘어가고 잘려버려요(예: 반별 QR이 10번부터 안 나오는 문제). 일반 문서 흐름(static)으로
+       두어야 내용이 길 때 자동으로 2페이지, 3페이지로 이어서 인쇄돼요. */
+    #printArea, #bulkPrintArea, #questionsPrintArea{position:static;top:auto;left:auto;width:100%;}
   }
   [hidden]{display:none!important;}
   .badge-print-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:20px;}
