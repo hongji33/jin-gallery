@@ -864,9 +864,10 @@
     Object.keys(params).forEach(function(k){ u.searchParams.set(k, params[k]); });
     return u.toString();
   }
-  /* sessionStorage를 써서, 창(탭)을 닫으면 로그인 정보가 사라지고 다음에 다시 로그인해야 해요. */
-  function saveLocalProfile(p){ try{ sessionStorage.setItem("jpmp_profile", JSON.stringify(p)); }catch(e){} }
-  function loadLocalProfile(){ try{ var s = sessionStorage.getItem("jpmp_profile"); return s ? JSON.parse(s) : null; }catch(e){ return null; } }
+  /* localStorage를 써서, 탭을 새로 열거나(QR을 카메라로 찍을 때마다 새 탭이 열려도) 창을 닫았다 다시 열어도
+     같은 기기·같은 브라우저라면 로그인 정보가 그대로 남아 있어 매번 다시 로그인하지 않아도 돼요. */
+  function saveLocalProfile(p){ try{ localStorage.setItem("jpmp_profile", JSON.stringify(p)); }catch(e){} }
+  function loadLocalProfile(){ try{ var s = localStorage.getItem("jpmp_profile"); return s ? JSON.parse(s) : null; }catch(e){ return null; } }
 
   /* ---------------- 탭 / 뷰 ---------------- */
   function switchTab(name, opts){
@@ -2378,7 +2379,7 @@
       if(myProfile && !getStudentDoc(myProfile.id)){
         myProfile = null;
         pendingLogin = null;
-        try{ sessionStorage.removeItem("jpmp_profile"); }catch(e){}
+        try{ localStorage.removeItem("jpmp_profile"); }catch(e){}
         var s1x = $("#setupStage1"), s2x = $("#setupStage2");
         if(s1x) s1x.style.display = "block";
         if(s2x) s2x.style.display = "none";
