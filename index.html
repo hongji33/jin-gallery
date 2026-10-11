@@ -473,6 +473,7 @@
       로그인해 주세요.
     </div>
     <button class="btn btn-ghost" id="btnShowSiteQr" style="width:100%;font-size:12.5px;">📱 앱 입장 QR 보기</button>
+    <button class="btn btn-ghost" id="btnLogout" style="width:100%;font-size:12.5px;display:none;margin-top:6px;">🚪 로그아웃</button>
   </aside>
 
   <main>
@@ -1154,6 +1155,24 @@
     } else {
       chip.innerHTML = "<b>미등록 감상자</b>로그인해 주세요.";
     }
+    var logoutBtn = $("#btnLogout");
+    if(logoutBtn) logoutBtn.style.display = myProfile ? "block" : "none";
+  }
+
+  /* 로그인 정보를 지우고 처음 화면(반 선택)으로 되돌려요. 이 기기를 다른 학생이 이어서 쓸 때
+     (예: 모둠 크롬북을 돌려쓸 때) 이전 학생 정보가 남아있지 않도록 하기 위한 용도예요. */
+  function doLogout(message, opts){
+    myProfile = null;
+    pendingLogin = null;
+    try{ localStorage.removeItem("jpmp_profile"); }catch(e){}
+    var s1x = $("#setupStage1"), s2x = $("#setupStage2");
+    if(s1x) s1x.style.display = "block";
+    if(s2x) s2x.style.display = "none";
+    renderIdChip(); renderProfileCard();
+    renderGalleryFilters(); renderPledgeFilters();
+    if(document.querySelector('[data-view="gallery"]').classList.contains("active")) renderGallery();
+    if(opts && opts.goToSetup) switchTab("setup");
+    if(message) toast(message);
   }
 
   function getStudentDoc(id){
@@ -2377,16 +2396,7 @@
       studentsCache = docListFromSnap(snap);
       // 교사가 이 학생을 대시보드에서 삭제했다면, 이 기기에 남아있던 등록 정보(로컬 캐시)도 함께 지워요.
       if(myProfile && !getStudentDoc(myProfile.id)){
-        myProfile = null;
-        pendingLogin = null;
-        try{ localStorage.removeItem("jpmp_profile"); }catch(e){}
-        var s1x = $("#setupStage1"), s2x = $("#setupStage2");
-        if(s1x) s1x.style.display = "block";
-        if(s2x) s2x.style.display = "none";
-        renderProfileCard();
-        renderGalleryFilters(); renderPledgeFilters();
-        if(document.querySelector('[data-view="gallery"]').classList.contains("active")) renderGallery();
-        toast("교사가 이 학생 정보를 삭제해서, 로그인 정보를 초기화했어요. 다시 로그인해 주세요.");
+        doLogout("교사가 이 학생 정보를 삭제해서, 로그인 정보를 초기화했어요. 다시 로그인해 주세요.");
       }
       renderIdChip();
       if(document.querySelector('[data-view="dash"]').classList.contains("active")) renderDashboard();
@@ -2453,6 +2463,9 @@
   }
   function closeSiteQrModal(){ $("#siteQrModal").hidden = true; }
   $("#btnShowSiteQr").addEventListener("click", openSiteQrModal);
+  $("#btnLogout").addEventListener("click", function(){
+    doLogout("로그아웃 됐어요. 다음에 들어올 때는 다시 로그인해 주세요.", {goToSetup:true});
+  });
   $("#siteQrClose").addEventListener("click", closeSiteQrModal);
   $("#siteQrEnterBtn").addEventListener("click", closeSiteQrModal);
   $("#siteQrPrintBtn").addEventListener("click", function(){
