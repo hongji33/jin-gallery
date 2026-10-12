@@ -6,3 +6,5 @@ functions/node_modules/
 service-account*.json
 credentials*.json
 test-results/
+.gallery-projects.json
+__pycache__/

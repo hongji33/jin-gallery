@@ -128,14 +128,14 @@ Firebase 운영 자격증명·GitHub 쓰기 권한·배포 단계는 없고 `dem
 2. Cloud Functions에 필요한 결제 플랜과 API를 설정하고 Firestore 위치를 정합니다.
    Functions 기본 리전은 `asia-northeast3`입니다.
 3. Firebase Authentication에서 이메일·비밀번호 제공자를 켜고 교사 계정을 생성합니다.
-   학생 회원가입 화면은 제공하지 않습니다. Firebase 웹 앱과 App Check의 reCAPTCHA 제공자를 등록합니다.
+   학생 회원가입 화면은 제공하지 않습니다. Firebase 웹 앱과 App Check의 Enterprise 제공자를 등록합니다.
 4. 관리자 권한으로 `v2Accounts/{교사 UID}` 문서를 아래처럼 등록합니다. 학생 브라우저로 역할을 부여하지 않습니다.
 
    ```json
    {"role":"teacher","active":true,"classIds":["2026-3-1","2026-3-2"]}
    ```
 
-5. `public/config.js`에 새 테스트 프로젝트의 웹 설정을 넣고 `emulator:false`, App Check 공개 사이트 키,
+5. `public/config.js`에 새 테스트 프로젝트의 웹 설정을 넣고 `emulator:false`, Enterprise App Check 공개 사이트 키,
    학년도를 설정합니다. 웹 SDK 설정·사이트 키는 공개 설정이고 서비스 계정 비밀키는 넣지 않습니다.
 6. Functions 실행 서비스 계정에 Firebase Auth 관리와 Custom Token 서명을 위한 필요한 IAM 권한을 확인합니다.
    토큰 서명 오류가 나면 IAM Service Account Credentials API와 해당 서비스 계정의 서명 권한을 점검합니다.
@@ -158,13 +158,47 @@ Firebase 운영 자격증명·GitHub 쓰기 권한·배포 단계는 없고 `dem
 
 - 서버 업무 로직: 11개 시나리오 통과.
 - 클라이언트 정적 검사: 3개 시나리오 통과.
-- 인증 세션·반 전환·로그아웃 테스트: 3개 시나리오 통과.
+- 인증 세션·반 전환·로그아웃·Enterprise 제공자 테스트: 4개 시나리오 통과.
 - Chromium 화면 테스트: 교사 로그인, 4자리 발급·중복 검사·배부 인쇄, 학생 로그인, 작품 이미지 등록,
   퀴즈·점수, 성장 다짐, 명예의 전당, 모바일 화면 통과.
 - 실제 Firestore 규칙·Firebase Auth/Functions/Firestore 통합 테스트: GitHub Actions에서 통과.
   로컬 에뮬레이터 다운로드 제한은 독립된 GitHub 테스트 환경에서 검증하여 해결했습니다.
-- 실제 Firebase 브라우저 테스트: QR 세션 복원 보완 후 GitHub Actions에서 추가 검증합니다.
+- 실제 Firebase 브라우저 테스트: QR 세션 복원을 포함한 학생·교사 수업 흐름 통과.
 - 검토용 초안 PR: https://github.com/hongji33/jin-gallery/pull/1 (운영 배포·병합하지 않음).
 - 서버 런타임 의존성 검사: `npm audit --omit=dev --prefix functions`에서 알려진 취약점 0개.
 
 분석 기준 원본 커밋: `315de001f0e4c75c9876b33a3256e7977fd87011`.
+
+## Cloud Shell 한 번 실행으로 준비·배포
+
+`scripts/cloud-shell-deploy.sh`는 **jin-gallery-v2만** 대상으로 합니다.
+Cloud Shell에서 저장소를 내려받아 아래 명령을 실행합니다.
+
+```sh
+bash scripts/cloud-shell-deploy.sh --teacher-uid '교사_UID' --app-id 'Firebase_웹_앱_ID'
+```
+
+프로젝트·웹 앱 ID·결제 상태를 먼저 확인하며, 결제 계정이 없으면 변경 없이 중단합니다.
+결제 계정을 자동으로 연결하거나 청구 정보를 변경하지 않습니다.
+이후 서버 의존성과 테스트를 실행하고 필요한 API, 교사 권한(2026년 3학년 1~10반),
+도메인을 제한한 SCORE 형식 Enterprise 사이트 키와 App Check를 준비합니다.
+사이트 키는 동일 앱·동일 도메인용으로 생성된 키가 있으면 재사용합니다.
+Cloud Functions의 전용 런타임 계정은 DB 접근 권한과 **해당 계정 본인에 대한** 토큰 서명 권한만 받습니다.
+프로젝트 기본 빌드 계정에는 빌드에 필요한 `roles/cloudbuild.builds.builder`를 부여합니다.
+서비스 계정 비밀키를 생성하거나 다운로드하지 않으며 gcloud 로그인 토큰을 출력·파일 저장하지 않습니다.
+공개 웹 설정은 Cloud Shell에서 생성하고, Functions에 전용 런타임 계정 이메일을 설정합니다.
+
+Firebase CLI 로그인 요청이 나오면 대상 프로젝트를 만든 Google 계정으로 로그인합니다.
+마지막에 대상과 공개 주소를 보여주며 **DEPLOY를 직접 입력해야만** 보안 규칙·서버·웹앱을 배포합니다.
+다른 입력은 준비까지만 완료하고 종료합니다. 기존 `jin-gallery` 데이터·페이지를 변경하지 않습니다.
+기존 데이터 삭제·이전 명령과 `--force`를 사용하지 않습니다. 준비 작업은 재실행할 수 있습니다.
+
+자동화의 구문, 대상 프로젝트 제한, 결제 미연결 중단, 도메인 제한 키 선택, 교사 역할 충돌 중단,
+부분 필드 갱신과 배포 승인 조건은 네트워크를 사용하지 않는 7개 테스트로 검증합니다.
+실제 Cloud API 설정·배포는 Cloud Shell에서 사용자가 실행할 때 이루어지며,
+조직 정책이나 IAM 권한 문제는 오류로 중단합니다. 클라우드 배포와 실제 App Check 발급 성공까지
+로컬 에뮬레이터 검증이 대신 보장하는 것은 아닙니다.
+
+공식 참고: [Enterprise App Check](https://firebase.google.com/docs/app-check/web/recaptcha-enterprise-provider),
+[App Check 설정 API](https://firebase.google.com/docs/reference/appcheck/rest/v1/projects.apps.recaptchaEnterpriseConfig/patch),
+[SCORE 사이트 키 생성 API](https://cloud.google.com/recaptcha/docs/reference/rest/v1/projects.keys/create).

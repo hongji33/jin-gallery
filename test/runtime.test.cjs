@@ -8,7 +8,8 @@ function fixture(){
   const auth={useEmulator(){},async setPersistence(p){calls.push(['persistence',p]);},onAuthStateChanged(cb){authChanged=cb;},async signOut(){calls.push(['signOut']);if(authChanged)await authChanged(null);},async signInWithCustomToken(token){calls.push(['custom',token]);return {user:{uid:'student'}};},async signInWithEmailAndPassword(){return {user:{uid:'teacher'}};}};
   const firestore={useEmulator(){},doc(p){return {async get(){const d=records[p];return {exists:!!d,data:()=>d};}};},collection(p){const q={orderBy(){return q;},limit(){return q;},onSnapshot(cb){const w={cb,stopped:false};watchers.push(w);return ()=>{w.stopped=true;};}};return q;}};
   const functions={useEmulator(){},httpsCallable(name){return async data=>{calls.push(['rpc',name,data]);if(failLogin)throw new Error('실패');return {data:name==='studentLogin'?{token:'server-token'}:{ok:true}};};}};
-  const firebase={initializeApp(c){calls.push(['config',c]);},auth:()=>auth,firestore:()=>firestore,app:()=>({functions:()=>functions}),appCheck:()=>({activate(){}})};
+  const firebase={initializeApp(c){calls.push(['config',c]);},auth:()=>auth,firestore:()=>firestore,app:()=>({functions:()=>functions}),appCheck:()=>({activate(provider,refresh){calls.push(['appCheck',provider,refresh]);}})};
+  firebase.appCheck.ReCaptchaEnterpriseProvider=class {constructor(siteKey){this.siteKey=siteKey;}};
   firebase.auth.Auth={Persistence:{SESSION:'session'}};
   const context={window:{},firebase,location:{hostname:'localhost'}};vm.createContext(context);vm.runInContext(source,context);
   const api=context.window.GallerySecure,config={emulator:true,region:'asia-northeast3',firebase:{projectId:'demo-jin-gallery'}};
@@ -36,4 +37,9 @@ test('교사 수업 선택은 계정 담당 반만 허용, 실패한 학생 로�
   await assert.rejects(()=>f.api.selectClass('2026-3-2'));
   f.fail();await assert.rejects(()=>f.api.loginStudent({code:'0000',password:'WRONG'}));
   assert.equal(f.api.session(),null);assert.equal(f.events.at(-1),null);
+});
+test('실제 프로젝트는 Enterprise App Check 제공자와 토큰 자동 갱신을 사용',async()=>{
+  const f=fixture();
+  await f.api.initialize({...f.config,emulator:false,firebase:{projectId:'jin-gallery-v2'},appCheckSiteKey:'public-site-key'},()=>{});
+  const call=f.calls.find(x=>x[0]==='appCheck');assert.equal(call[1].siteKey,'public-site-key');assert.equal(call[2],true);
 });

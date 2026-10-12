@@ -78,7 +78,7 @@
         auth.useEmulator('http://127.0.0.1:9099',{disableWarnings:true});
         firestore.useEmulator('127.0.0.1',8080);
         functions.useEmulator('127.0.0.1',5001);
-      } else firebase.appCheck().activate(c.appCheckSiteKey,true);
+      } else firebase.appCheck().activate(new firebase.appCheck.ReCaptchaEnterpriseProvider(c.appCheckSiteKey),true);
       await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
       auth.onAuthStateChanged(async function(user){
         if(loginInProgress) return;

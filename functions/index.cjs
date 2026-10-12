@@ -7,7 +7,7 @@ const core = require('./core.cjs');
 initializeApp();
 const firestore=getFirestore();
 const emulator=process.env.FUNCTIONS_EMULATOR==='true';
-const options={region:'asia-northeast3',enforceAppCheck:!emulator,maxInstances:10,timeoutSeconds:60,memory:'512MiB'};
+const options={region:'asia-northeast3',enforceAppCheck:!emulator,maxInstances:10,timeoutSeconds:60,memory:'512MiB',serviceAccount:emulator?undefined:process.env.GALLERY_RUNTIME_SERVICE_ACCOUNT};
 const store={
   async get(path) { const d=await firestore.doc(path).get(); return d.exists?d.data():null; },
   transaction(fn) {

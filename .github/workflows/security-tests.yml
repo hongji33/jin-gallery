@@ -27,6 +27,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm ci --prefix functions --ignore-scripts
       - run: npm test
+      - run: bash -n scripts/cloud-shell-deploy.sh
+      - run: python3 -m unittest test/cloud_shell_test.py
       - run: npx playwright install --with-deps chromium
       - run: npm run test:browser
       - run: npm run test:rules
