@@ -501,8 +501,8 @@
             <select id="inClass"></select>
           </div>
           <div class="field">
-            <label>번호</label>
-            <input type="number" id="inNumber" min="1" max="40" placeholder="예: 15">
+            <label>선생님이 주신 코드</label>
+            <input type="number" id="inNumber" min="1000" max="9999" placeholder="예: 7342">
           </div>
           <div class="field" id="classPinField" style="display:none;">
             <label>우리 반 비밀번호</label>
@@ -518,7 +518,7 @@
             <input type="text" id="inNickname" maxlength="12" placeholder="예: 청자소년">
           </div>
           <button class="btn btn-primary" id="btnSaveProfile" style="width:100%">등록 완료</button>
-          <button class="btn btn-ghost" id="btnBackStage1" style="width:100%;margin-top:6px;">← 학년·반·번호 다시 입력</button>
+          <button class="btn btn-ghost" id="btnBackStage1" style="width:100%;margin-top:6px;">← 학년·반·코드 다시 입력</button>
           <p class="empty-note" id="setupHint" style="padding:10px 0 0;text-align:left;"></p>
         </div>
         <div class="card" id="profileCard" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;">
@@ -646,8 +646,8 @@
         <div class="tablewrap"><table class="rank" id="artRankTable"><thead><tr><th>등급</th><th>작품</th><th>활동</th><th>반</th><th>작가</th><th>피드백 수</th><th>총점</th></tr></thead><tbody></tbody></table></div>
       </div>
       <div class="card" style="margin-top:16px;">
-        <h3 style="font-size:15px;margin-bottom:10px;">🎫 번호별 QR 미리 인쇄 (작품 등록 전)</h3>
-        <p class="empty-note" style="text-align:left;padding:0 0 8px;">학생이 아직 작품을 등록하지 않았어도, 활동·학년·반·번호만으로 QR을 미리 만들어 인쇄할 수 있어요. 학생이 나중에 그 활동·번호로 로그인해 작품을 등록하면 이미 붙여둔 QR에 그대로 연결돼요. 같은 학생이 다른 활동(예: 민화, 전각)에 또 등록하면 QR도 활동별로 따로 만들어야 해요.</p>
+        <h3 style="font-size:15px;margin-bottom:10px;">🎫 코드 QR 미리 인쇄 (작품 등록 전)</h3>
+        <p class="empty-note" style="text-align:left;padding:0 0 8px;">학생이 아직 작품을 등록하지 않았어도, 무작위 4자리 코드로 QR을 미리 만들어 인쇄할 수 있어요. 코드는 순서(1,2,3…)가 아니라 다른 사람이 추측할 수 없도록 무작위로 뽑혀요. 인쇄한 QR을 학생에게 아무거나 한 장씩 나눠주면, 그 학생이 자기 코드로 로그인해 작품을 등록할 때 이미 붙여둔 QR에 그대로 연결돼요. 같은 학생이 다른 활동(예: 민화, 전각)에 또 등록하면 QR도 활동별로 따로 만들어야 해요.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
           <label style="font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px;">활동
             <select id="preQrActivity" style="padding:8px;border:1px solid var(--border);border-radius:8px;"><option value="">불러오는 중…</option></select>
@@ -658,11 +658,11 @@
           <label style="font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;">반
             <input type="number" id="preQrClass" min="1" max="20" value="1" style="width:72px;padding:8px;border:1px solid var(--border);border-radius:8px;">
           </label>
-          <label style="font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;">인원 수(번호 1~N)
+          <label style="font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;">만들 QR 개수
             <input type="number" id="preQrCount" min="1" max="40" value="30" style="width:96px;padding:8px;border:1px solid var(--border);border-radius:8px;">
           </label>
         </div>
-        <button class="btn btn-primary" id="btnPreQrPrint" style="width:100%;">🎫 이 반 번호별 QR 미리 만들어 인쇄</button>
+        <button class="btn btn-primary" id="btnPreQrPrint" style="width:100%;">🎫 이 반 코드 QR 무작위로 만들어 인쇄</button>
         <p class="empty-note" id="preQrHint" style="padding:8px 0 0;text-align:left;font-size:11.5px;"></p>
       </div>
       <div class="card" style="margin-top:16px;">
@@ -844,6 +844,26 @@
   function classLabel(grade, classNum){ return grade + "학년 " + classNum + "반"; }
   function classId(grade, classNum){ return grade + "-" + classNum; }
   function studentId(grade, classNum, number){ return grade + "-" + classNum + "-" + number; }
+  /* 학생의 "번호"는 더 이상 출석 순서(1,2,3…)가 아니라, 선생님이 미리 무작위로 뽑아서 나눠주는
+     4자리 코드예요(1000~9999). 순서대로 추측해서 다른 친구 QR 주소에 들어갈 수 없도록, 같은
+     반에서 이미 쓰인 코드와 겹치지 않는 코드를 뽑아줘요. */
+  function randomFourDigitCode(){ return 1000 + Math.floor(Math.random() * 9000); }
+  function generateUniqueCodes(count, grade, classNum){
+    var used = {};
+    studentsCache.forEach(function(s){
+      if(s.grade === grade && s.classNum === classNum) used[s.number] = true;
+    });
+    var codes = [];
+    var guard = 0;
+    while(codes.length < count && guard < count * 100 + 200){
+      guard++;
+      var c = randomFourDigitCode();
+      if(used[c]) continue;
+      used[c] = true;
+      codes.push(c);
+    }
+    return codes;
+  }
   /* 학생 한 명이 활동(민화/전각 등)별로 작품을 따로 등록할 수 있도록, 작품 문서 id를
      "학생id__활동id"로 고정해요. 그래도 학생이 작품을 등록하기 전에 번호별 QR을 미리 만들 수 있어요
      (그 활동으로 등록할 걸 미리 알고 있을 때). */
@@ -1018,15 +1038,15 @@
       if(!activityId){ hint.textContent = "활동을 선택해 주세요. (목록에 없으면 먼저 위에서 활동을 추가하세요)"; return; }
       if(!grade || grade<1){ hint.textContent = "학년을 입력해 주세요."; return; }
       if(!classNum || classNum<1){ hint.textContent = "반을 입력해 주세요."; return; }
-      if(!count || count<1){ hint.textContent = "인원 수를 입력해 주세요."; return; }
+      if(!count || count<1){ hint.textContent = "만들 QR 개수를 입력해 주세요."; return; }
       var activityName = activityNameById(activityId);
       var grid = $("#bulkPrintGrid");
-      var header = '<div class="bp-class-header">' + esc(classLabel(grade,classNum)) + ' · ' + esc(activityName) + ' (번호별 QR 미리 인쇄)</div>';
-      var items = [];
-      for(var n=1; n<=count; n++){ items.push(n); }
+      var header = '<div class="bp-class-header">' + esc(classLabel(grade,classNum)) + ' · ' + esc(activityName) + ' (코드 QR 미리 인쇄)</div>';
+      var items = generateUniqueCodes(count, grade, classNum);
+      if(!items.length){ hint.textContent = "코드를 만들 수 없어요. 개수를 줄여서 다시 시도해 주세요."; return; }
       grid.innerHTML = header + items.map(function(n,i){
         return '<div class="badge-print-item">' +
-          '<div class="bp-eyebrow">' + esc(classLabel(grade,classNum)) + ' ' + n + '번 · ' + esc(activityName) + '</div>' +
+          '<div class="bp-eyebrow">' + esc(classLabel(grade,classNum)) + ' 코드 ' + n + ' · ' + esc(activityName) + '</div>' +
           '<div class="bp-nick">&nbsp;</div>' +
           '<div class="bp-meta">작품 등록 후 QR이 연결돼요</div>' +
           '<div class="bp-qr" id="bpqr_' + i + '"></div>' +
@@ -1035,7 +1055,7 @@
       items.forEach(function(n,i){
         renderQrInto("#bpqr_" + i, pageUrl({view:"artwork", id: artworkDocId(studentId(grade,classNum,n), activityId)}), 130);
       });
-      hint.textContent = classLabel(grade,classNum) + " · " + activityName + " 1~" + count + "번, 총 " + count + "개 QR을 준비했어요. 학생이 등록하기 전에 미리 인쇄해서 자리에 붙여두세요.";
+      hint.textContent = classLabel(grade,classNum) + " · " + activityName + " 코드 " + items.length + "개를 무작위로 만들었어요. 학생이 등록하기 전에 미리 인쇄해서 한 장씩 나눠주세요(아무 코드나 줘도 상관없어요).";
       $("#bulkPrintArea").style.display = "block";
       setTimeout(function(){ window.print(); }, 60);
     });
@@ -1150,7 +1170,7 @@
       var pts = getStudentDoc(myProfile.id);
       var total = pts ? (pts.points||0)+(pts.authorPoints||0) : 0;
       chip.innerHTML = "<b>" + esc(myProfile.nickname) + " · " + total + "P</b>" +
-        "<div>" + classLabel(myProfile.grade, myProfile.classNum) + " · " + myProfile.number + "번</div>" +
+        "<div>" + classLabel(myProfile.grade, myProfile.classNum) + " · 코드 " + myProfile.number + "</div>" +
         (myProfile.activityName ? "<div style='margin-top:2px;'>" + esc(myProfile.activityName) + "</div>" : "");
     } else {
       chip.innerHTML = "<b>미등록 감상자</b>로그인해 주세요.";
@@ -1187,7 +1207,7 @@
     var total = pts ? (pts.points||0)+(pts.authorPoints||0) : 0;
     box.innerHTML = '<div class="badge badge-genuine">등록 완료</div>' +
       '<div style="font-family:var(--font-display);font-size:20px;margin-top:4px;">' + esc(myProfile.nickname) + '</div>' +
-      '<div class="plaque">' + classLabel(myProfile.grade, myProfile.classNum) + ' · ' + myProfile.number + '번' + (myProfile.activityName ? ' · ' + esc(myProfile.activityName) : '') + '</div>' +
+      '<div class="plaque">' + classLabel(myProfile.grade, myProfile.classNum) + ' · 코드 ' + myProfile.number + (myProfile.activityName ? ' · ' + esc(myProfile.activityName) : '') + '</div>' +
       '<div class="num" style="font-size:22px;color:var(--brass-deep);margin-top:6px;">' + total + 'P</div>' +
       '<p class="empty-note" style="padding:0;">[작품 전시·퀴즈] 탭에서 친구 작품을 감상하고 포인트를 모아 보세요.</p>';
   }
@@ -1228,7 +1248,10 @@
     });
   }
 
-  /* 1단계: 활동·학년·반·번호만 입력하고 "입장하기" → 이미 등록된 적 있는 학생이면 닉네임을 미리 채워서 2단계로 넘어가요. */
+  /* 1단계: 활동·학년·반·코드(선생님이 미리 무작위로 뽑아서 나눠준 4자리 코드)를 입력하고 "입장하기"
+     → 이미 등록된 적 있는 학생이면 닉네임을 미리 채워서 2단계로 넘어가요.
+     예전처럼 "반에서 몇 번째" 같은 순서 번호가 아니라, 다른 사람이 추측하기 어렵도록 선생님이 무작위로
+     정해서 나눠준 코드예요. 그래서 다른 친구 작품 주소를 번호만 바꿔가며 찾아낼 수 없어요. */
   var pendingLogin = null; // {grade, classNum, number, activityId}
   $("#btnEnterClass").addEventListener("click", function(){
     var grade = parseInt($("#inGrade").value,10);
@@ -1237,7 +1260,7 @@
     var activityId = $("#inActivity").value;
     var hint = $("#stage1Hint");
     if(!activityId){ hint.textContent = "활동을 선택해 주세요. (목록에 없으면 선생님께 추가를 요청하세요)"; return; }
-    if(!number || number<1){ hint.textContent = "번호를 입력해 주세요."; return; }
+    if(!number || number<1){ hint.textContent = "선생님이 주신 코드를 입력해 주세요."; return; }
     var needPin = classPinFor(grade, classNum);
     if(needPin){
       var enteredPin = $("#inClassPin").value.trim();
@@ -1248,8 +1271,8 @@
     var existing = getStudentDoc(studentId(grade,classNum,number));
     $("#inNickname").value = existing ? existing.nickname : "";
     $("#stage2Info").textContent = existing
-      ? classLabel(grade,classNum) + " " + number + "번, 이전에 등록한 닉네임이 자동으로 채워졌어요. 그대로 입장하거나 바꿀 수 있어요."
-      : classLabel(grade,classNum) + " " + number + "번, 처음 입장하는 학생이에요. 사용할 닉네임을 입력해 주세요.";
+      ? classLabel(grade,classNum) + " · 코드 " + number + ", 이전에 등록한 닉네임이 자동으로 채워졌어요. 그대로 입장하거나 바꿀 수 있어요."
+      : classLabel(grade,classNum) + " · 코드 " + number + ", 처음 입장하는 학생이에요. 사용할 닉네임을 입력해 주세요.";
     $("#setupHint").textContent = "";
     $("#setupStage1").style.display = "none";
     $("#setupStage2").style.display = "block";
