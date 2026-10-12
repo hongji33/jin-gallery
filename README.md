@@ -96,6 +96,7 @@ npm run test:rules
 npm run test:integration
 npx playwright install --with-deps chromium
 npm run test:browser
+npm run test:browser:firebase
 ```
 
 화면을 직접 테스트할 때는 두 터미널을 사용합니다.
@@ -113,7 +114,8 @@ npm run seed
 시드 스크립트는 Auth·Firestore 에뮬레이터 주소를 강제하며 운영 계정을 만들지 않습니다.
 
 `test:browser`는 실제 HTML 화면과 서버 업무 로직을 메모리 저장소로 실행합니다.
-Firebase SDK·Security Rules 통합을 대체하는 테스트가 아니며, 두 에뮬레이터 테스트도 통과해야 합니다.
+`test:browser:firebase`는 실제 Firebase 브라우저 SDK와 Auth·Firestore·Functions·Hosting 에뮬레이터를
+사용해 QR 세션 복원과 학생·교사 수업 흐름을 검증합니다. 두 에뮬레이터 보안 테스트도 통과해야 합니다.
 브라우저 화면 테스트의 테스트 서비스는 `test/`에만 있고 Hosting 배포 대상에 포함되지 않습니다.
 
 GitHub Actions의 `Secure gallery tests` 워크플로는 PR에서 같은 테스트를 실행합니다.
@@ -159,9 +161,10 @@ Firebase 운영 자격증명·GitHub 쓰기 권한·배포 단계는 없고 `dem
 - 인증 세션·반 전환·로그아웃 테스트: 3개 시나리오 통과.
 - Chromium 화면 테스트: 교사 로그인, 4자리 발급·중복 검사·배부 인쇄, 학생 로그인, 작품 이미지 등록,
   퀴즈·점수, 성장 다짐, 명예의 전당, 모바일 화면 통과.
-- 로컬 Firestore 규칙·Firebase 통합 테스트: 에뮬레이터 다운로드 도메인에 대한 작업 환경 정책 차단으로 미실행.
-  GitHub Actions 검증용 워크플로를 포함했지만 연결이 브랜치 생성 요청을 403으로 거부해 원격 실행도 아직 못했습니다.
-  저장소 쓰기 권한 또는 로컬 에뮬레이터 다운로드 허용이 필요합니다. 이 두 테스트의 통과 전 운영 배포 승인을 요청하지 않습니다.
+- 실제 Firestore 규칙·Firebase Auth/Functions/Firestore 통합 테스트: GitHub Actions에서 통과.
+  로컬 에뮬레이터 다운로드 제한은 독립된 GitHub 테스트 환경에서 검증하여 해결했습니다.
+- 실제 Firebase 브라우저 테스트: QR 세션 복원 보완 후 GitHub Actions에서 추가 검증합니다.
+- 검토용 초안 PR: https://github.com/hongji33/jin-gallery/pull/1 (운영 배포·병합하지 않음).
 - 서버 런타임 의존성 검사: `npm audit --omit=dev --prefix functions`에서 알려진 취약점 0개.
 
 분석 기준 원본 커밋: `315de001f0e4c75c9876b33a3256e7977fd87011`.

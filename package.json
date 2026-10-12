@@ -7,6 +7,7 @@
     "test:rules": "firebase emulators:exec --project demo-jin-gallery --only firestore 'node --test test/rules.test.cjs'",
     "test:integration": "firebase emulators:exec --project demo-jin-gallery --only auth,firestore,functions 'node --test test/integration.test.cjs'",
     "test:browser": "node test/browser-smoke.cjs",
+    "test:browser:firebase": "firebase emulators:exec --project demo-jin-gallery --only auth,firestore,functions,hosting 'node test/browser-firebase.cjs'",
     "emulators": "firebase emulators:start --project demo-jin-gallery",
     "seed": "node scripts/seed-emulator.cjs"
   },

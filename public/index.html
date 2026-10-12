@@ -2131,7 +2131,8 @@
     if(view === "artwork" && id){
       if(myProfile){
         currentArtworkId = id;
-        switchTab("artwork");
+        if(artworksCache.some(function(a){ return a.id === id; })) openArtwork(id);
+        else switchTab("artwork");
       } else {
         pendingArtworkAfterSetup = id;
         switchTab("setup");
