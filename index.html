@@ -1761,7 +1761,20 @@
     } else if(myResp){
       quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">이미 참여했어요! 획득한 점수: <b class="num">'+myResp.score+'점</b></div>';
     } else if(teacherMode){
-      quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">교사 열람 모드예요. 아래 감상평에서 학생들의 퀴즈 답변과 질문을 모두 볼 수 있어요.</div>';
+      /* 교사 모드에서는 작가가 만든 퀴즈 문제 자체(객관식은 정답까지)를 바로 볼 수 있게 해요.
+         학생들이 실제로 어떻게 답했는지는 그 아래 감상평 목록에서 확인할 수 있어요. */
+      quizHtml = a.quiz.map(function(qRaw,i){
+        var q = normalizeQuizQ(qRaw);
+        if(q.type === "mc"){
+          var opts = (q.choices||[]).map(function(c,ci){
+            var isCorrect = ci === q.correctIndex;
+            return '<div style="padding:2px 0;'+(isCorrect?'color:var(--brass-deep);font-weight:600;':'color:var(--ink-soft);')+'">'+(isCorrect?'✅ ':'· ')+esc(c)+'</div>';
+          }).join("");
+          return '<div class="quiz-q"><div class="q-text">Q'+(i+1)+'. '+esc(q.text)+'</div><div style="font-size:13px;margin-top:2px;">'+opts+'</div></div>';
+        }
+        return '<div class="quiz-q"><div class="q-text">Q'+(i+1)+'. '+esc(q.text)+'</div><p class="empty-note" style="padding:2px 0 0;text-align:left;font-size:12px;">주관식 문제예요. 학생들의 실제 답변은 아래 감상평에서 확인할 수 있어요.</p></div>';
+      }).join("") +
+      '<div class="empty-note" style="text-align:left;padding:10px 0 0;">교사 열람 모드예요. 학생들의 퀴즈 답변과 질문은 아래 감상평에서 모두 볼 수 있어요.</div>';
     } else if(!myProfile){
       quizHtml = '<div class="empty-note" style="text-align:left;padding:14px 0;">퀴즈에 참여하려면 먼저 [로그인하기] 탭에서 프로필을 등록해 주세요.</div>';
     } else {
