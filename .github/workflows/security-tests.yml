@@ -1,0 +1,43 @@
+name: Secure gallery tests
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: true
+      FIREBASE_CLI_DISABLE_MOTD: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci --ignore-scripts
+      - run: npm ci --prefix functions --ignore-scripts
+      - run: npm test
+      - run: bash -n scripts/cloud-shell-deploy.sh
+      - run: python3 -m unittest test/cloud_shell_test.py
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: npm run test:rules
+      - run: npm run test:integration
+      - run: npm run test:browser:firebase
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: secure-gallery-test-results
+          path: |
+            test-results/
+          if-no-files-found: ignore

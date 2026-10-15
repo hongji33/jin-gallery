@@ -1,0 +1,21 @@
+{
+  "name": "jin-gallery-secure-test",
+  "private": true,
+  "version": "2.0.0",
+  "scripts": {
+    "test": "node --test test/core.test.cjs test/client.test.cjs test/runtime.test.cjs",
+    "test:rules": "firebase emulators:exec --project demo-jin-gallery --only firestore 'node --test test/rules.test.cjs'",
+    "test:integration": "firebase emulators:exec --project demo-jin-gallery --only auth,firestore,functions 'node --test test/integration.test.cjs'",
+    "test:browser": "node test/browser-smoke.cjs",
+    "test:browser:firebase": "firebase emulators:exec --project demo-jin-gallery --only auth,firestore,functions,hosting 'node test/browser-firebase.cjs'",
+    "emulators": "firebase emulators:start --project demo-jin-gallery",
+    "seed": "node scripts/seed-emulator.cjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase": "^13.0.0",
+    "firebase-admin": "^14.5.0",
+    "firebase-tools": "^14.0.0",
+    "playwright": "^1.50.0"
+  }
+}

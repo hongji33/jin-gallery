@@ -1,0 +1,7 @@
+{
+  "functions": [{"source": "functions", "codebase": "secure-gallery"}],
+  "firestore": {"rules": "firestore.rules", "indexes": "firestore.indexes.json"},
+  "storage": {"rules": "storage.rules"},
+  "hosting": {"public": "public", "ignore": ["**/.*"], "headers": [{"source":"**", "headers":[{"key":"Referrer-Policy","value":"no-referrer"},{"key":"X-Content-Type-Options","value":"nosniff"},{"key":"Cache-Control","value":"no-store"}]}]},
+  "emulators": {"auth":{"port":9099},"firestore":{"port":8080},"functions":{"port":5001},"hosting":{"port":5000},"ui":{"enabled":true,"port":4000},"singleProjectMode":true}
+}

@@ -1,0 +1,7 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 이 버전의 작품 이미지는 Firestore에 저장합니다. Storage는 사용하지 않습니다.
+    match /{path=**} { allow read, write: if false; }
+  }
+}

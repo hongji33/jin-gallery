@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function account() { return get(/databases/$(database)/documents/v2Accounts/$(request.auth.uid)).data; }
+    function signed() { return request.auth != null; }
+    function active() { return signed() && account().active == true; }
+    function teacher(cid) { return active() && account().role == 'teacher' && cid in account().classIds; }
+    function student(cid) {
+      return active() && account().role == 'student' && account().classId == cid
+        && request.auth.token.authVersion == account().authVersion;
+    }
+    function member(cid) { return teacher(cid) || student(cid); }
+    match /v2Accounts/{uid} {
+      allow get: if signed() && request.auth.uid == uid && active()
+        && (account().role == 'teacher' || request.auth.token.authVersion == account().authVersion);
+      allow list, write: if false;
+    }
+    match /v2Classes/{cid} {
+      allow get: if member(cid);
+      allow list, write: if false;
+      match /students/{sid} { allow read: if member(cid); allow write: if false; }
+      match /activities/{aid} { allow read: if member(cid); allow write: if false; }
+      match /artworks/{aid} { allow read: if member(cid); allow write: if false; }
+      // 감상·답변은 반 안에서 공유되는 수업 기록입니다. 외부 반에서는 읽을 수 없습니다.
+      match /responses/{rid} { allow read: if member(cid); allow write: if false; }
+      match /reflections/{sid} { allow read: if member(cid); allow write: if false; }
+      match /roster/{sid} { allow read: if teacher(cid); allow write: if false; }
+      match /quizKeys/{aid} {
+        allow get: if teacher(cid) || (student(cid) && get(/databases/$(database)/documents/v2Classes/$(cid)/artworks/$(aid)).data.authorId == account().studentId);
+        allow list, write: if false;
+      }
+      match /audit/{id} { allow read: if teacher(cid); allow write: if false; }
+      match /credentials/{sid} { allow read, write: if false; }
+      match /codes/{code} { allow read, write: if false; }
+    }
+    // 이전 컬렉션과 미정의 경로는 이 새 테스트 프로젝트에서 접근하지 않습니다.
+    match /{path=**} { allow read, write: if false; }
+  }
+}
