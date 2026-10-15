@@ -75,7 +75,7 @@
   }
 
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
+  html,body{margin:0;padding:0;overflow-x:hidden;}
   body{
     background:
       radial-gradient(circle at 12% 18%, rgba(255,180,220,.45), transparent 40%),
@@ -129,7 +129,7 @@
 
   .brand{display:flex;align-items:center;gap:10px;padding:0 4px;}
   .sidebar-mascot{width:96px;margin:2px auto 0;}
-  @media (max-width:860px){.brand{display:none;}.sidebar-mascot{display:none;}}
+  @media (max-width:860px){.brand{display:none;}.sidebar .sidebar-mascot{display:none;}}
   .brand-seal{
     width:40px;height:40px;border-radius:50%;
     background: radial-gradient(circle at 32% 28%, var(--seal-deep), var(--seal) 70%);
@@ -159,8 +159,8 @@
   .tab-btn:hover{background:var(--card-bg);}
   .tab-btn.active{background:var(--card-bg);color:var(--ink);border-color:var(--border);box-shadow:var(--shadow);}
   @media (max-width:860px){
-    .tab-btn{flex-direction:column;gap:2px;padding:6px 4px;font-size:10px;border-radius:var(--radius-s);flex:1;}
-    .tab-btn span.label{white-space:nowrap;}
+    .tab-btn{flex-direction:column;gap:2px;padding:6px 3px;font-size:9px;border-radius:var(--radius-s);flex:1;min-width:0;}
+    .tab-btn span.label{white-space:normal;line-height:1.15;text-align:center;overflow-wrap:break-word;}
   }
 
   .id-chip{
@@ -169,7 +169,7 @@
     background:var(--card-bg); padding:10px 12px; font-size:12px; color:var(--ink-soft);
   }
   .id-chip b{color:var(--ink);font-weight:600;display:block;font-size:13px;margin-bottom:2px;}
-  @media (max-width:860px){.id-chip{display:none;}#btnShowSiteQr{display:none;}}
+  @media (max-width:860px){.id-chip{display:none;}#btnShowSiteQr{display:none;}#btnLogout{display:none!important;}}
 
   /* 화면 크기와 상관없이 항상 맨 위에 보이는 내 정보 바. 로그인하면 닉네임·포인트·반 정보와
      로그아웃 버튼이 여기 눈에 잘 띄게 떠 있어요(사이드바 맨 아래 id-chip과는 별개). */
@@ -179,16 +179,25 @@
     padding:10px 16px; margin-bottom:18px; box-shadow:var(--shadow);
     position:sticky; top:0; z-index:30;
   }
-  .top-profile-bar .tpb-info{font-size:13px;color:var(--ink-soft);line-height:1.5;}
+  .top-profile-bar .tpb-info{
+    font-size:13px;color:var(--ink-soft);line-height:1.4;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
+  }
   .top-profile-bar .tpb-info b{color:var(--ink);font-weight:700;font-size:15px;}
-  .top-profile-bar .btn{flex-shrink:0;font-size:12.5px;padding:8px 14px;white-space:nowrap;}
+  .top-profile-bar .tpb-sep{opacity:.5;margin:0 1px;}
+  .top-profile-bar .btn-logout{
+    flex-shrink:0;font-size:12.5px;padding:8px 16px;white-space:nowrap;
+    background:#D14D66;color:#fff;border:1px solid #B83955;font-weight:600;
+  }
+  .top-profile-bar .btn-logout:hover{background:#B83955;}
   @media (max-width:860px){
     .top-profile-bar{top:0;padding:8px 12px;}
-    .top-profile-bar .tpb-info{font-size:12px;}
-    .top-profile-bar .tpb-info b{font-size:13.5px;}
+    .top-profile-bar .tpb-info{font-size:11.5px;}
+    .top-profile-bar .tpb-info b{font-size:13px;}
+    .top-profile-bar .btn-logout{font-size:11.5px;padding:7px 12px;}
   }
 
-  main{padding:28px 32px 60px; max-width:1080px; width:100%;}
+  main{padding:28px 32px 60px; max-width:1080px; width:100%; min-width:0;}
   @media (max-width:860px){main{padding:18px 16px 84px;}}
 
   .view{display:none;}
@@ -496,7 +505,7 @@
   <main>
     <div class="top-profile-bar" id="topProfileBar" style="display:none;">
       <div class="tpb-info" id="topProfileInfo"></div>
-      <button class="btn btn-ghost" id="btnLogoutTop">🚪 로그아웃</button>
+      <button class="btn btn-logout" id="btnLogoutTop">🚪 로그아웃</button>
     </div>
     <!-- 반 선택 / 프로필 -->
     <section class="view" data-view="setup">
@@ -1128,11 +1137,15 @@
       sel.innerHTML = '<option value="">선생님이 활동을 아직 추가하지 않았어요</option>';
       return;
     }
-    sel.innerHTML = activitiesCache.map(function(act){ return '<option value="'+act.id+'">'+esc(act.name)+'</option>'; }).join("");
-    // 우선순위: 활동별 등록 링크로 고정된 활동 > 내가 이미 등록한 활동 > 이전에 선택해둔 값 > 가장 최근에 추가된 활동(맨 위)
+    /* 활동이 여러 개일 때 자동으로 맨 위 활동이 선택된 채로 나오면, 학생들이 그대로 두고
+       들어가서 다른 반/활동으로 잘못 등록되는 경우가 있어요. 그래서 고정되거나 이전에
+       선택한 값이 없으면 빈 값("선택해 주세요")으로 두고 학생이 직접 고르게 해요. */
+    sel.innerHTML = '<option value="">활동을 선택해 주세요</option>' +
+      activitiesCache.map(function(act){ return '<option value="'+act.id+'">'+esc(act.name)+'</option>'; }).join("");
+    // 우선순위: 활동별 등록 링크로 고정된 활동 > 내가 이미 등록한 활동 > 이전에 선택해둔 값
     var want = lockedActivityId || (myProfile && myProfile.activityId) || keep;
     var stillExists = want && activitiesCache.some(function(act){ return act.id === want; });
-    sel.value = stillExists ? want : activitiesCache[0].id;
+    sel.value = stillExists ? want : "";
     var lockNote = $("#activityLockNote");
     if(lockedActivityId && stillExists && want === lockedActivityId){
       sel.disabled = true;
@@ -1209,8 +1222,8 @@
         (myProfile.activityName ? "<div style='margin-top:2px;'>" + esc(myProfile.activityName) + "</div>" : "");
       if(topInfo){
         topInfo.innerHTML = "<b>" + esc(myProfile.nickname) + " · " + total + "P</b>" +
-          "<div>" + classLabel(myProfile.grade, myProfile.classNum) + " · 코드 " + myProfile.number +
-          (myProfile.activityName ? " · " + esc(myProfile.activityName) : "") + "</div>";
+          " <span class='tpb-sep'>·</span> " + classLabel(myProfile.grade, myProfile.classNum) + " · 코드 " + myProfile.number +
+          (myProfile.activityName ? " · " + esc(myProfile.activityName) : "");
       }
       if(topBar) topBar.style.display = "flex";
     } else {
