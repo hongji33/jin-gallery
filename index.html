@@ -171,8 +171,25 @@
   .id-chip b{color:var(--ink);font-weight:600;display:block;font-size:13px;margin-bottom:2px;}
   @media (max-width:860px){.id-chip{display:none;}#btnShowSiteQr{display:none;}}
 
+  /* 화면 크기와 상관없이 항상 맨 위에 보이는 내 정보 바. 로그인하면 닉네임·포인트·반 정보와
+     로그아웃 버튼이 여기 눈에 잘 띄게 떠 있어요(사이드바 맨 아래 id-chip과는 별개). */
+  .top-profile-bar{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius-m);
+    padding:10px 16px; margin-bottom:18px; box-shadow:var(--shadow);
+    position:sticky; top:0; z-index:30;
+  }
+  .top-profile-bar .tpb-info{font-size:13px;color:var(--ink-soft);line-height:1.5;}
+  .top-profile-bar .tpb-info b{color:var(--ink);font-weight:700;font-size:15px;}
+  .top-profile-bar .btn{flex-shrink:0;font-size:12.5px;padding:8px 14px;white-space:nowrap;}
+  @media (max-width:860px){
+    .top-profile-bar{top:0;padding:8px 12px;}
+    .top-profile-bar .tpb-info{font-size:12px;}
+    .top-profile-bar .tpb-info b{font-size:13.5px;}
+  }
+
   main{padding:28px 32px 60px; max-width:1080px; width:100%;}
-  @media (max-width:860px){main{padding:18px 16px 24px;}}
+  @media (max-width:860px){main{padding:18px 16px 84px;}}
 
   .view{display:none;}
   .view.active{display:block;}
@@ -477,6 +494,10 @@
   </aside>
 
   <main>
+    <div class="top-profile-bar" id="topProfileBar" style="display:none;">
+      <div class="tpb-info" id="topProfileInfo"></div>
+      <button class="btn btn-ghost" id="btnLogoutTop">🚪 로그아웃</button>
+    </div>
     <!-- 반 선택 / 프로필 -->
     <section class="view" data-view="setup">
       <div class="page-head has-left-mascot">
@@ -1179,14 +1200,22 @@
 
   function renderIdChip(){
     var chip = $("#idChip");
+    var topBar = $("#topProfileBar"), topInfo = $("#topProfileInfo");
     if(myProfile){
       var pts = getStudentDoc(myProfile.id);
       var total = pts ? (pts.points||0)+(pts.authorPoints||0) : 0;
       chip.innerHTML = "<b>" + esc(myProfile.nickname) + " · " + total + "P</b>" +
         "<div>" + classLabel(myProfile.grade, myProfile.classNum) + " · 코드 " + myProfile.number + "</div>" +
         (myProfile.activityName ? "<div style='margin-top:2px;'>" + esc(myProfile.activityName) + "</div>" : "");
+      if(topInfo){
+        topInfo.innerHTML = "<b>" + esc(myProfile.nickname) + " · " + total + "P</b>" +
+          "<div>" + classLabel(myProfile.grade, myProfile.classNum) + " · 코드 " + myProfile.number +
+          (myProfile.activityName ? " · " + esc(myProfile.activityName) : "") + "</div>";
+      }
+      if(topBar) topBar.style.display = "flex";
     } else {
       chip.innerHTML = "<b>미등록 감상자</b>로그인해 주세요.";
+      if(topBar) topBar.style.display = "none";
     }
     var logoutBtn = $("#btnLogout");
     if(logoutBtn) logoutBtn.style.display = myProfile ? "block" : "none";
@@ -2546,6 +2575,9 @@
   function closeSiteQrModal(){ $("#siteQrModal").hidden = true; }
   $("#btnShowSiteQr").addEventListener("click", openSiteQrModal);
   $("#btnLogout").addEventListener("click", function(){
+    doLogout("로그아웃 됐어요. 다음에 들어올 때는 다시 로그인해 주세요.", {goToSetup:true});
+  });
+  $("#btnLogoutTop").addEventListener("click", function(){
     doLogout("로그아웃 됐어요. 다음에 들어올 때는 다시 로그인해 주세요.", {goToSetup:true});
   });
   $("#siteQrClose").addEventListener("click", closeSiteQrModal);
